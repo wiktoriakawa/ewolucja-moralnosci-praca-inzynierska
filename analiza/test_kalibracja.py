@@ -65,6 +65,83 @@ def test_podsumuj_K1_policzone_recznie():
     assert not w["dopuszczalny"]                         # przeżycie 1/2 < 2/3
 
 
+def _pokolenie_K2(
+    przebieg: str,
+    T: float,
+    alfa: float,
+    *,
+    zywi: int = 10,
+    zakwalifikowani: int = 3,
+    awaryjny: bool = False,
+) -> dict[str, object]:
+    return {
+        "przebieg": przebieg,
+        "pokolenie": 0,
+        "pokolenia_plan": 1,
+        "zywi_koniec": zywi,
+        "zakwalifikowani": zakwalifikowani,
+        "awaryjny": awaryjny,
+        "T": T,
+        "alfa": alfa,
+    }
+
+
+def test_podsumuj_K2_pozostawia_dopuszczalne_wartosci_bazowe():
+    pokolenia = pd.DataFrame(
+        [
+            *[
+                _pokolenie_K2(f"bazowy_z{ziarno}", 50.0, 1.0)
+                for ziarno in (1, 2, 3)
+            ],
+            *[
+                _pokolenie_K2(
+                    f"alternatywny_z{ziarno}",
+                    30.0,
+                    0.85,
+                    zakwalifikowani=2,
+                )
+                for ziarno in (1, 2, 3)
+            ],
+        ]
+    )
+
+    wynik = kalibracja.podsumuj_K2(pokolenia)
+
+    assert wynik["dopuszczalny"].all()
+    wybrany = wynik[wynik["wybrany"]].iloc[0]
+    assert wybrany["T"] == 50.0
+    assert wybrany["alfa"] == 1.0
+    assert wybrany["udzial_zakwalifikowanych"] == pytest.approx(0.3)
+    assert wybrany["udzial_awaryjny"] == 0.0
+
+
+def test_podsumuj_K2_odrzuca_niestabilne_warianty():
+    pokolenia = pd.DataFrame(
+        [
+            _pokolenie_K2("wymarcie_z1", 30.0, 1.0, zywi=0, zakwalifikowani=0),
+            _pokolenie_K2("wymarcie_z2", 30.0, 1.0),
+            _pokolenie_K2("wymarcie_z3", 30.0, 1.0),
+            _pokolenie_K2("awaryjny_z1", 50.0, 0.85, awaryjny=True),
+            _pokolenie_K2("awaryjny_z2", 50.0, 0.85),
+            _pokolenie_K2("awaryjny_z3", 50.0, 0.85),
+            *[
+                _pokolenie_K2(
+                    f"za_duzo_z{ziarno}",
+                    70.0,
+                    1.0,
+                    zakwalifikowani=6,
+                )
+                for ziarno in (1, 2, 3)
+            ],
+        ]
+    )
+
+    wynik = kalibracja.podsumuj_K2(pokolenia)
+
+    assert not wynik["dopuszczalny"].any()
+    assert not wynik["wybrany"].any()
+
+
 BAZOWA = """
 [przebieg]
 ziarno = 1
@@ -138,3 +215,51 @@ nazwa = "t2"
     assert len(tabela) == 2
     assert tabela["ziarna"].tolist() == [2, 2]
     assert "tab:K1" in (wyjscie / "K1_podsumowanie.tex").read_text(encoding="utf-8")
+
+
+def test_caly_skrypt_K2_na_malej_serii(tmp_path):
+    bazowa = tmp_path / "bazowa.toml"
+    bazowa.write_text(BAZOWA, encoding="utf-8")
+    katalog_serii = tmp_path / "wyniki" / "K2"
+    definicja = tmp_path / "K2.toml"
+    definicja.write_text(
+        f"""
+[seria]
+nazwa = "K2"
+bazowa = "{bazowa.as_posix()}"
+katalog = "{katalog_serii.as_posix()}"
+ziarna = [1, 2]
+
+[[warianty]]
+nazwa = "T0_a1"
+"ewolucja.T" = 0.0
+"zasoby.alfa" = 1.0
+
+[[warianty]]
+nazwa = "T1_a0.85"
+"ewolucja.T" = 1.0
+"zasoby.alfa" = 0.85
+""",
+        encoding="utf-8",
+    )
+    assert moralnosc_main(["seria", str(definicja)]) == 0
+
+    wyjscie = tmp_path / "analiza_K2"
+    assert (
+        kalibracja.main(["K2", str(katalog_serii), "--wyjscie", str(wyjscie)])
+        == 0
+    )
+
+    for plik in (
+        "K2_podsumowanie.csv",
+        "K2_podsumowanie.tex",
+        "K2_zakwalifikowani.pdf",
+        "K2_awaryjny.pdf",
+    ):
+        assert (wyjscie / plik).exists(), plik
+    tabela = pd.read_csv(wyjscie / "K2_podsumowanie.csv")
+    assert len(tabela) == 2
+    assert tabela["ziarna"].tolist() == [2, 2]
+    tabela_tex = (wyjscie / "K2_podsumowanie.tex").read_text(encoding="utf-8")
+    assert "tab:K2" in tabela_tex
+    assert "$T$ / $\\alpha$" in tabela_tex

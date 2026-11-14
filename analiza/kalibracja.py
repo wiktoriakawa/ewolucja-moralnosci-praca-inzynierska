@@ -35,15 +35,39 @@ PARAMETRY_WARIANTU = (
 )
 
 # kolumny, które odróżniają warianty w serii
-WARIANT = {"K1": ["skala", "tau"], "K1b": ["h"], "K3": ["r", "sigma"], "K4": ["R"]}
+WARIANT = {
+    "K1": ["skala", "tau"],
+    "K1b": ["h"],
+    "K2": ["T", "alfa"],
+    "K3": ["r", "sigma"],
+    "K4": ["R"],
+}
 
 MIARY_K1 = [
     "przezycie", "koncentracja_p0", "entropia_p0", "entropia_koniec",
     "udzial_D_min", "mediana_D_p0", "zbieranie_koniec",
 ]
+MIARY_K2 = ["przezycie", "udzial_zakwalifikowanych", "udzial_awaryjny"]
+
 PROG_PRZEZYCIA = 2 / 3  # plan, sekcja 3: brak wymarcia w co najmniej 2 z 3 ziaren
 
-NAZWY_WARIANTU = {"skala": "Skala", "tau": "$\\tau$", "h": "$n_{\\mathrm{h}}$", "r": "$r$", "sigma": "$\\sigma$", "R": "$R$"}
+# Kryteria dopuszczalności K2 ustalone przed uruchomieniem serii:
+# mechanizm awaryjny w najwyżej 10% pokoleń oraz mediana udziału
+# zakwalifikowanych wśród żywych w każdym ziarnie od 10% do 50%.
+MAKS_UDZIAL_AWARYJNY = 0.10
+MIN_UDZIAL_ZAKWALIFIKOWANYCH = 0.10
+MAKS_UDZIAL_ZAKWALIFIKOWANYCH = 0.50
+
+NAZWY_WARIANTU = {
+    "skala": "Skala",
+    "tau": "$\\tau$",
+    "h": "$n_{\\mathrm{h}}$",
+    "T": "$T$",
+    "alfa": "$\\alpha$",
+    "r": "$r$",
+    "sigma": "$\\sigma$",
+    "R": "$R$",
+}
 
 ETYKIETY_TEX = {
     "przezycie": "Przeżycie",
@@ -53,6 +77,8 @@ ETYKIETY_TEX = {
     "udzial_D_min": "$D \\ge D_{\\min}$ (pok.~0)",
     "mediana_D_p0": "Mediana $D$ (pok.~0)",
     "zbieranie_koniec": "Zbieranie (koniec)",
+    "udzial_zakwalifikowanych": "Zakwalifikowani wśród żywych",
+    "udzial_awaryjny": "Pokolenia z wariantem awaryjnym",
 }
 
 
@@ -165,6 +191,82 @@ def podsumuj_K1(
     return wynik.reset_index()
 
 
+def _miary_przebiegow_K2(pokolenia: pd.DataFrame) -> pd.DataFrame:
+    """Miary stabilności selekcji K2 dla każdego przebiegu."""
+    pok = pokolenia.copy()
+    pok["udzial_zakwalifikowanych"] = pok["zakwalifikowani"].div(
+        pok["zywi_koniec"].where(pok["zywi_koniec"].gt(0))
+    )
+    po_przebiegu = pok.groupby("przebieg")
+    przezycie = (po_przebiegu.size() == po_przebiegu["pokolenia_plan"].first()) & (
+        po_przebiegu["zywi_koniec"].last() > 0
+    )
+    miary = pd.DataFrame(
+        {
+            "przezycie": przezycie.astype(float),
+            "udzial_zakwalifikowanych": po_przebiegu[
+                "udzial_zakwalifikowanych"
+            ].median(),
+            "udzial_awaryjny": po_przebiegu["awaryjny"].mean(),
+        }
+    )
+    return miary.join(po_przebiegu[WARIANT["K2"]].first())
+
+
+def podsumuj_K2(pokolenia: pd.DataFrame) -> pd.DataFrame:
+    """Podsumowuje K2 po ziarnach i wskazuje wariant zgodny z planem."""
+    miary = _miary_przebiegow_K2(pokolenia)
+    grupy = miary.groupby(WARIANT["K2"])
+    wynik = pd.concat([grupy.size().rename("ziarna"), grupy[MIARY_K2].mean()], axis=1)
+    for miara in MIARY_K2[1:]:
+        wynik.insert(wynik.columns.get_loc(miara) + 1, f"{miara}_sd", grupy[miara].std())
+
+    wynik["udzial_awaryjny_max"] = grupy["udzial_awaryjny"].max()
+    wynik["udzial_zakwalifikowanych_min"] = grupy[
+        "udzial_zakwalifikowanych"
+    ].min()
+    wynik["udzial_zakwalifikowanych_max"] = grupy[
+        "udzial_zakwalifikowanych"
+    ].max()
+    wynik["dopuszczalny"] = (
+        wynik["przezycie"].eq(1.0)
+        & wynik["udzial_awaryjny_max"].le(MAKS_UDZIAL_AWARYJNY)
+        & wynik["udzial_zakwalifikowanych_min"].ge(
+            MIN_UDZIAL_ZAKWALIFIKOWANYCH
+        )
+        & wynik["udzial_zakwalifikowanych_max"].le(
+            MAKS_UDZIAL_ZAKWALIFIKOWANYCH
+        )
+    )
+    wynik = wynik.reset_index()
+    wynik["odleglosc_od_bazowego"] = (
+        (wynik["T"] - 50.0).abs() / 20.0
+        + (wynik["alfa"] - 1.0).abs() / 0.15
+    )
+    wynik["wybrany"] = False
+
+    bazowy = (
+        wynik["dopuszczalny"]
+        & np.isclose(wynik["T"], 50.0)
+        & np.isclose(wynik["alfa"], 1.0)
+    )
+    if bazowy.any():
+        wynik.loc[bazowy, "wybrany"] = True
+    else:
+        kandydaci = wynik[wynik["dopuszczalny"]].sort_values(
+            [
+                "udzial_awaryjny",
+                "udzial_zakwalifikowanych_sd",
+                "odleglosc_od_bazowego",
+                "T",
+                "alfa",
+            ]
+        )
+        if not kandydaci.empty:
+            wynik.loc[kandydaci.index[0], "wybrany"] = True
+    return wynik
+
+
 def _wykres_od_tau(podsumowanie: pd.DataFrame, miara: str, opis_y: str, plik: Path) -> None:
     """Miara w funkcji tau (oś logarytmiczna), linia na skalę, słupki = sd między ziarnami."""
     fig, os_ = plt.subplots(figsize=(3.2, 2.4))
@@ -188,6 +290,54 @@ def wykres_K1(podsumowanie: pd.DataFrame, plik_koncentracja: Path, plik_entropia
     """Koncentracja decyzji w pokoleniu 0 i entropia akcji na końcu w funkcji tau."""
     _wykres_od_tau(podsumowanie, "koncentracja_p0", "koncentracja decyzji (pok. 0)", plik_koncentracja)
     _wykres_od_tau(podsumowanie, "entropia_koniec", "entropia akcji [bit]", plik_entropia)
+
+
+def _wykres_K2_miary(
+    podsumowanie: pd.DataFrame,
+    miara: str,
+    opis_y: str,
+    plik: Path,
+) -> None:
+    """Miara K2 w funkcji T; linia na wartość alfa, słupki = sd między ziarnami."""
+    fig, os_ = plt.subplots(figsize=(3.2, 2.4))
+    for alfa, grupa in podsumowanie.groupby("alfa"):
+        grupa = grupa.sort_values("T")
+        os_.errorbar(
+            grupa["T"],
+            grupa[miara],
+            yerr=grupa[f"{miara}_sd"],
+            marker="o",
+            markersize=4,
+            capsize=3,
+            label=f"$\\alpha$ = {alfa:g}".replace(".", ","),
+        )
+    os_.set_xticks(sorted(podsumowanie["T"].unique()))
+    os_.set_ylim(0, 1)
+    ek._przecinki(os_, x=True)
+    os_.set_xlabel("próg reprodukcji $T$")
+    os_.set_ylabel(opis_y)
+    os_.legend(fontsize="small", frameon=False)
+    ek._zapisz_wykres(fig, plik)
+
+
+def wykres_K2(
+    podsumowanie: pd.DataFrame,
+    plik_zakwalifikowani: Path,
+    plik_awaryjny: Path,
+) -> None:
+    """Udział zakwalifikowanych i wariantu awaryjnego dla kombinacji T i alfa."""
+    _wykres_K2_miary(
+        podsumowanie,
+        "udzial_zakwalifikowanych",
+        "mediana udziału zakwalifikowanych",
+        plik_zakwalifikowani,
+    )
+    _wykres_K2_miary(
+        podsumowanie,
+        "udzial_awaryjny",
+        "udział pokoleń z wariantem awaryjnym",
+        plik_awaryjny,
+    )
 
 
 # --- zapis i uruchomienie --------------------------------------------------------------
@@ -235,7 +385,7 @@ def zapisz_podsumowanie(tabela: pd.DataFrame, katalog: Path, nazwa: str, podpis:
 
 def utworz_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="python -m analiza.kalibracja")
-    parser.add_argument("seria", choices=sorted(WARIANT), help="seria: K1 (K1b, K3, K4 – kolejne PR-y)")
+    parser.add_argument("seria", choices=sorted(WARIANT), help="seria: K1 lub K2 (pozostałe – kolejne PR-y)")
     parser.add_argument("katalog", type=Path, help="katalog serii z trybu serii")
     parser.add_argument("--wyjscie", type=Path, default=None, help="domyślnie wyniki/analiza/<seria>")
     parser.add_argument("--a", type=float, default=2.0, help="wygładzanie M_wyg (Lab02: a = 2)")
@@ -247,35 +397,93 @@ def utworz_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     """Podsumowanie serii: CSV, tabela LaTeX, wykresy i lista wariantów dopuszczalnych."""
     arg = utworz_parser().parse_args(argv)
-    if arg.seria != "K1":
+    if arg.seria not in ("K1", "K2"):
         print(f"Analiza serii {arg.seria} będzie w kolejnym PR.", file=sys.stderr)
         return 2
     wyjscie = arg.wyjscie or Path("wyniki/analiza") / arg.seria
     wyjscie.mkdir(parents=True, exist_ok=True)
 
     pokolenia, agenci, przebiegi = wczytaj_serie(arg.katalog)
-    dylematy = wczytaj_dylematy_p0(arg.katalog, przebiegi)
-    podsumowanie = podsumuj_K1(pokolenia, agenci, dylematy, arg.D_min, arg.ostatnie)
-    ziarna = int(podsumowanie["ziarna"].max())
-    zapisz_podsumowanie(
-        podsumowanie, wyjscie, "K1_podsumowanie",
-        podpis=(
-            "Seria K1: zróżnicowanie decyzji dla kombinacji skali obserwacji i temperatury $\\tau$ "
-            f"(średnia po {ziarna} ziarnach, w nawiasie odchylenie między ziarnami; koncentracja -- "
-            f"mediana udziału najczęstszej akcji agenta w dylematach pokolenia 0 dla agentów z $D \\ge {arg.D_min}$; "
-            f"„koniec” -- ostatnie {arg.ostatnie} pokoleń)"
-        ),
-        etykieta="tab:K1",
-    )
-    wykres_K1(podsumowanie, wyjscie / "K1_koncentracja.pdf", wyjscie / "K1_entropia.pdf")
+    if arg.seria == "K1":
+        dylematy = wczytaj_dylematy_p0(arg.katalog, przebiegi)
+        podsumowanie = podsumuj_K1(
+            pokolenia, agenci, dylematy, arg.D_min, arg.ostatnie
+        )
+        ziarna = int(podsumowanie["ziarna"].max())
+        zapisz_podsumowanie(
+            podsumowanie, wyjscie, "K1_podsumowanie",
+            podpis=(
+                "Seria K1: zróżnicowanie decyzji dla kombinacji skali obserwacji i temperatury $\\tau$ "
+                f"(średnia po {ziarna} ziarnach, w nawiasie odchylenie między ziarnami; koncentracja -- "
+                f"mediana udziału najczęstszej akcji agenta w dylematach pokolenia 0 dla agentów z $D \\ge {arg.D_min}$; "
+                f"„koniec” -- ostatnie {arg.ostatnie} pokoleń)"
+            ),
+            etykieta="tab:K1",
+        )
+        wykres_K1(
+            podsumowanie,
+            wyjscie / "K1_koncentracja.pdf",
+            wyjscie / "K1_entropia.pdf",
+        )
+        dopuszczalne = podsumowanie[podsumowanie["dopuszczalny"]].sort_values(
+            "koncentracja_p0"
+        )
+        opis_dopuszczalnych = (
+            f"Dopuszczalne (przeżycie ≥ 2/3, mediana D w pok. 0 ≥ {arg.D_min}), "
+            "od najniższej koncentracji:"
+        )
+        kolumny = [
+            *WARIANT["K1"],
+            "koncentracja_p0",
+            "koncentracja_p0_sd",
+            "entropia_koniec",
+            "entropia_koniec_sd",
+        ]
+    elif arg.seria == "K2":
+        podsumowanie = podsumuj_K2(pokolenia)
+        ziarna = int(podsumowanie["ziarna"].max())
+        zapisz_podsumowanie(
+            podsumowanie,
+            wyjscie,
+            "K2_podsumowanie",
+            podpis=(
+                "Seria K2: stabilność selekcji dla kombinacji progu reprodukcji $T$ "
+                f"i dostępności zasobów $\\alpha$ (średnia po {ziarna} ziarnach, "
+                "w nawiasie odchylenie między ziarnami)"
+            ),
+            etykieta="tab:K2",
+        )
+        wykres_K2(
+            podsumowanie,
+            wyjscie / "K2_zakwalifikowani.pdf",
+            wyjscie / "K2_awaryjny.pdf",
+        )
+        dopuszczalne = podsumowanie[podsumowanie["dopuszczalny"]].sort_values(
+            ["wybrany", "udzial_awaryjny", "udzial_zakwalifikowanych_sd"],
+            ascending=[False, True, True],
+        )
+        opis_dopuszczalnych = (
+            "Dopuszczalne (bez wymarcia, wariant awaryjny ≤ 10%, mediana udziału "
+            "zakwalifikowanych w każdym ziarnie 10–50%):"
+        )
+        kolumny = [
+            *WARIANT["K2"],
+            "udzial_zakwalifikowanych",
+            "udzial_zakwalifikowanych_sd",
+            "udzial_awaryjny",
+            "udzial_awaryjny_sd",
+            "wybrany",
+        ]
 
     print(f"Przebiegi: {len(przebiegi)}, warianty: {len(podsumowanie)}")
     with pd.option_context("display.width", 200, "display.max_columns", 30):
         print(podsumowanie.round(3).to_string(index=False))
-    dopuszczalne = podsumowanie[podsumowanie["dopuszczalny"]].sort_values("koncentracja_p0")
-    print(f"\nDopuszczalne (przeżycie ≥ 2/3, mediana D w pok. 0 ≥ {arg.D_min}), od najniższej koncentracji:")
-    kolumny = [*WARIANT["K1"], "koncentracja_p0", "koncentracja_p0_sd", "entropia_koniec", "entropia_koniec_sd"]
-    print(dopuszczalne[kolumny].round(3).to_string(index=False) if len(dopuszczalne) else "brak")
+    print(f"\n{opis_dopuszczalnych}")
+    print(
+        dopuszczalne[kolumny].round(3).to_string(index=False)
+        if len(dopuszczalne)
+        else "brak"
+    )
     print(f"\nWyniki: {wyjscie}")
     return 0
 
