@@ -344,13 +344,19 @@ def wykres_K2(
 # --- zapis i uruchomienie --------------------------------------------------------------
 
 def _komorka(wiersz: pd.Series, kolumna: str) -> str:
-    """„średnia (sd)”; udziały w procentach, przeżycie jako „przeżyło/ziarna”."""
+    """„średnia (sd)”; udziały w procentach, ich sd w punktach procentowych."""
     if kolumna == "przezycie":
         return f"{round(wiersz['przezycie'] * wiersz['ziarna'])}/{int(wiersz['ziarna'])}"
-    format_ = ek.procent_tex if kolumna.startswith(("udzial", "zbieranie")) else ek.liczba_tex
+    udzial = kolumna.startswith(("udzial", "zbieranie"))
+    format_ = ek.procent_tex if udzial else ek.liczba_tex
     tekst = format_(wiersz[kolumna])
     if f"{kolumna}_sd" in wiersz.index:
-        tekst += f" ({format_(wiersz[f'{kolumna}_sd'])})"
+        odchylenie = wiersz[f"{kolumna}_sd"]
+        if udzial and not pd.isna(odchylenie):
+            tekst_odchylenia = f"{ek.liczba_tex(odchylenie * 100, miejsca=1)}~p.p."
+        else:
+            tekst_odchylenia = format_(odchylenie)
+        tekst += f" ({tekst_odchylenia})"
     return tekst
 
 

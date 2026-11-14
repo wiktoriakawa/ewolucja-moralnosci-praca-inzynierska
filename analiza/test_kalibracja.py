@@ -86,6 +86,20 @@ def _pokolenie_K2(
     }
 
 
+def test_komorka_zapisuje_odchylenie_udzialu_w_punktach_procentowych():
+    wiersz = pd.Series(
+        {
+            "udzial_zakwalifikowanych": 0.395,
+            "udzial_zakwalifikowanych_sd": 0.091,
+        }
+    )
+
+    assert (
+        kalibracja._komorka(wiersz, "udzial_zakwalifikowanych")
+        == "39{,}5\\% (9{,}1~p.p.)"
+    )
+
+
 def test_podsumuj_K2_pozostawia_dopuszczalne_wartosci_bazowe():
     pokolenia = pd.DataFrame(
         [
