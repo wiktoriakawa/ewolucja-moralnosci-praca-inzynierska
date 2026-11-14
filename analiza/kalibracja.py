@@ -1,7 +1,7 @@
-"""Analiza serii kalibracyjnych (Lab03, #28); na razie seria K1 – zróżnicowanie decyzji.
+"""Analiza serii kalibracyjnych K1, K2 i K2b.
 
 Wejście: katalog serii z trybu serii (status.csv i katalogi przebiegów). Wyjście w --wyjscie:
-K1_podsumowanie.csv i .tex, K1_koncentracja.pdf, K1_entropia.pdf. Kryteria: plan_kalibracji.md.
+podsumowanie CSV i LaTeX oraz wykresy właściwe dla serii. Kryteria: plan_kalibracji.md.
 Z katalogu kod/:  PYTHONPATH=src python -m analiza.kalibracja K1 wyniki/K1 --wyjscie wyniki/analiza/K1
 """
 import argparse
@@ -39,6 +39,7 @@ WARIANT = {
     "K1": ["skala", "tau"],
     "K1b": ["h"],
     "K2": ["T", "alfa"],
+    "K2b": ["T", "alfa"],
     "K3": ["r", "sigma"],
     "K4": ["R"],
 }
@@ -385,7 +386,11 @@ def zapisz_podsumowanie(tabela: pd.DataFrame, katalog: Path, nazwa: str, podpis:
 
 def utworz_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="python -m analiza.kalibracja")
-    parser.add_argument("seria", choices=sorted(WARIANT), help="seria: K1 lub K2 (pozostałe – kolejne PR-y)")
+    parser.add_argument(
+        "seria",
+        choices=sorted(WARIANT),
+        help="seria: K1, K2 lub K2b (pozostałe – kolejne PR-y)",
+    )
     parser.add_argument("katalog", type=Path, help="katalog serii z trybu serii")
     parser.add_argument("--wyjscie", type=Path, default=None, help="domyślnie wyniki/analiza/<seria>")
     parser.add_argument("--a", type=float, default=2.0, help="wygładzanie M_wyg (Lab02: a = 2)")
@@ -396,8 +401,14 @@ def utworz_parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     """Podsumowanie serii: CSV, tabela LaTeX, wykresy i lista wariantów dopuszczalnych."""
+    # Windows może uruchomić Pythona z kodowaniem CP1252, które nie obsługuje
+    # części polskich znaków ani symboli używanych w podsumowaniu konsolowym.
+    ustaw_kodowanie = getattr(sys.stdout, "reconfigure", None)
+    if ustaw_kodowanie is not None:
+        ustaw_kodowanie(encoding="utf-8")
+
     arg = utworz_parser().parse_args(argv)
-    if arg.seria not in ("K1", "K2"):
+    if arg.seria not in ("K1", "K2", "K2b"):
         print(f"Analiza serii {arg.seria} będzie w kolejnym PR.", file=sys.stderr)
         return 2
     wyjscie = arg.wyjscie or Path("wyniki/analiza") / arg.seria
@@ -429,7 +440,7 @@ def main(argv: list[str] | None = None) -> int:
             "koncentracja_p0"
         )
         opis_dopuszczalnych = (
-            f"Dopuszczalne (przeżycie ≥ 2/3, mediana D w pok. 0 ≥ {arg.D_min}), "
+            f"Dopuszczalne (przeżycie >= 2/3, mediana D w pok. 0 >= {arg.D_min}), "
             "od najniższej koncentracji:"
         )
         kolumny = [
@@ -439,32 +450,33 @@ def main(argv: list[str] | None = None) -> int:
             "entropia_koniec",
             "entropia_koniec_sd",
         ]
-    elif arg.seria == "K2":
+    elif arg.seria in ("K2", "K2b"):
+        nazwa_serii = arg.seria
         podsumowanie = podsumuj_K2(pokolenia)
         ziarna = int(podsumowanie["ziarna"].max())
         zapisz_podsumowanie(
             podsumowanie,
             wyjscie,
-            "K2_podsumowanie",
+            f"{nazwa_serii}_podsumowanie",
             podpis=(
-                "Seria K2: stabilność selekcji dla kombinacji progu reprodukcji $T$ "
+                f"Seria {nazwa_serii}: stabilność selekcji dla kombinacji progu reprodukcji $T$ "
                 f"i dostępności zasobów $\\alpha$ (średnia po {ziarna} ziarnach, "
                 "w nawiasie odchylenie między ziarnami)"
             ),
-            etykieta="tab:K2",
+            etykieta=f"tab:{nazwa_serii}",
         )
         wykres_K2(
             podsumowanie,
-            wyjscie / "K2_zakwalifikowani.pdf",
-            wyjscie / "K2_awaryjny.pdf",
+            wyjscie / f"{nazwa_serii}_zakwalifikowani.pdf",
+            wyjscie / f"{nazwa_serii}_awaryjny.pdf",
         )
         dopuszczalne = podsumowanie[podsumowanie["dopuszczalny"]].sort_values(
             ["wybrany", "udzial_awaryjny", "udzial_zakwalifikowanych_sd"],
             ascending=[False, True, True],
         )
         opis_dopuszczalnych = (
-            "Dopuszczalne (bez wymarcia, wariant awaryjny ≤ 10%, mediana udziału "
-            "zakwalifikowanych w każdym ziarnie 10–50%):"
+            "Dopuszczalne (bez wymarcia, wariant awaryjny <= 10%, mediana udziału "
+            "zakwalifikowanych w każdym ziarnie 10-50%):"
         )
         kolumny = [
             *WARIANT["K2"],

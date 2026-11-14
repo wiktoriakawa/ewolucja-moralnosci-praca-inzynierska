@@ -263,3 +263,43 @@ nazwa = "T1_a0.85"
     tabela_tex = (wyjscie / "K2_podsumowanie.tex").read_text(encoding="utf-8")
     assert "tab:K2" in tabela_tex
     assert "$T$ / $\\alpha$" in tabela_tex
+
+
+def test_k2b_uzywa_logiki_k2_i_wlasnych_nazw_plikow(tmp_path):
+    bazowa = tmp_path / "bazowa.toml"
+    bazowa.write_text(BAZOWA, encoding="utf-8")
+    katalog_serii = tmp_path / "wyniki" / "K2b"
+    definicja = tmp_path / "K2b.toml"
+    definicja.write_text(
+        f"""
+[seria]
+nazwa = "K2b"
+bazowa = "{bazowa.as_posix()}"
+katalog = "{katalog_serii.as_posix()}"
+ziarna = [1]
+
+[[warianty]]
+nazwa = "T0_a0.9"
+"ewolucja.T" = 0.0
+"zasoby.alfa" = 0.9
+""",
+        encoding="utf-8",
+    )
+    assert moralnosc_main(["seria", str(definicja)]) == 0
+
+    wyjscie = tmp_path / "analiza_K2b"
+    assert (
+        kalibracja.main(["K2b", str(katalog_serii), "--wyjscie", str(wyjscie)])
+        == 0
+    )
+
+    for plik in (
+        "K2b_podsumowanie.csv",
+        "K2b_podsumowanie.tex",
+        "K2b_zakwalifikowani.pdf",
+        "K2b_awaryjny.pdf",
+    ):
+        assert (wyjscie / plik).exists(), plik
+    assert "tab:K2b" in (wyjscie / "K2b_podsumowanie.tex").read_text(
+        encoding="utf-8"
+    )
