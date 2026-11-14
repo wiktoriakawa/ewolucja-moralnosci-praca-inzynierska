@@ -1,0 +1,51 @@
+# K2: kalibracja progu reprodukcji T i dostępności zasobów alfa.
+# Jedna seria = konfiguracja bazowa + wartości wybrane w K1 + wariant × ziarno.
+
+[seria]
+nazwa = "K2"
+# Pytanie: gdzie selekcja działa bez wymierania, częstego używania wariantu
+# awaryjnego i zaniku presji selekcyjnej?
+bazowa = "konfiguracje/bazowa.toml"
+katalog = "wyniki/K2"
+ziarna = [501, 502, 503]
+
+[stale]
+# Wartości wybrane w K1.
+"obserwacje.skala" = 50.0
+"siec.tau" = 2.0
+"siec.h" = 8
+
+# E0 pozostaje stałe, a każde pokolenie trwa jak w konfiguracji bazowej.
+"ewolucja.E0" = 50.0
+"przebieg.pokolenia" = 30
+
+# 3 progi reprodukcji × 2 wartości alfa = 6 wariantów, czyli 18 przebiegów.
+[[warianty]]
+nazwa = "T30_a0.85"
+"ewolucja.T" = 30.0
+"zasoby.alfa" = 0.85
+
+[[warianty]]
+nazwa = "T30_a1"
+"ewolucja.T" = 30.0
+"zasoby.alfa" = 1.0
+
+[[warianty]]
+nazwa = "T50_a0.85"
+"ewolucja.T" = 50.0
+"zasoby.alfa" = 0.85
+
+[[warianty]]
+nazwa = "T50_a1"
+"ewolucja.T" = 50.0
+"zasoby.alfa" = 1.0
+
+[[warianty]]
+nazwa = "T70_a0.85"
+"ewolucja.T" = 70.0
+"zasoby.alfa" = 0.85
+
+[[warianty]]
+nazwa = "T70_a1"
+"ewolucja.T" = 70.0
+"zasoby.alfa" = 1.0
