@@ -1,0 +1,66 @@
+# K2b: uszczegółowienie kalibracji progu reprodukcji T i dostępności zasobów alfa.
+# Seria bada obszar pomiędzy wartościami sprawdzonymi w zgrubnej serii K2.
+
+[seria]
+nazwa = "K2b"
+# Pytanie: czy po zagęszczeniu siatki można ograniczyć zmienność między ziarnami
+# i użycie wariantu awaryjnego bez zaniku presji selekcyjnej?
+bazowa = "konfiguracje/bazowa.toml"
+katalog = "wyniki/K2b"
+ziarna = [501, 502, 503]
+
+[stale]
+# Wartości wybrane w K1.
+"obserwacje.skala" = 50.0
+"siec.tau" = 2.0
+"siec.h" = 8
+
+# Warunki pozostają takie same jak w K2, aby wyniki były porównywalne.
+"ewolucja.E0" = 50.0
+"przebieg.pokolenia" = 30
+
+# 3 progi reprodukcji × 3 wartości alfa = 9 wariantów, czyli 27 przebiegów.
+[[warianty]]
+nazwa = "T40_a0.90"
+"ewolucja.T" = 40.0
+"zasoby.alfa" = 0.90
+
+[[warianty]]
+nazwa = "T40_a0.95"
+"ewolucja.T" = 40.0
+"zasoby.alfa" = 0.95
+
+[[warianty]]
+nazwa = "T40_a1"
+"ewolucja.T" = 40.0
+"zasoby.alfa" = 1.0
+
+[[warianty]]
+nazwa = "T50_a0.90"
+"ewolucja.T" = 50.0
+"zasoby.alfa" = 0.90
+
+[[warianty]]
+nazwa = "T50_a0.95"
+"ewolucja.T" = 50.0
+"zasoby.alfa" = 0.95
+
+[[warianty]]
+nazwa = "T50_a1"
+"ewolucja.T" = 50.0
+"zasoby.alfa" = 1.0
+
+[[warianty]]
+nazwa = "T60_a0.90"
+"ewolucja.T" = 60.0
+"zasoby.alfa" = 0.90
+
+[[warianty]]
+nazwa = "T60_a0.95"
+"ewolucja.T" = 60.0
+"zasoby.alfa" = 0.95
+
+[[warianty]]
+nazwa = "T60_a1"
+"ewolucja.T" = 60.0
+"zasoby.alfa" = 1.0
