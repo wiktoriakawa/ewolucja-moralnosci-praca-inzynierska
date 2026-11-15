@@ -485,3 +485,91 @@ nazwa = "r3L_sg0.4"
     assert tabela["r_L"].tolist() == [1.0, 3.0]
     tex = (wyjscie / "K3_podsumowanie.tex").read_text(encoding="utf-8")
     assert "tab:K3" in tex and "$rL$" in tex
+
+
+# --- K4 ---------------------------------------------------------------------------------
+
+def test_udzial_rodzenstwa_recznie():
+    # pokolenie 1: agenci 10, 11 (rodzic 0) i 12 (rodzic 2); pokolenie 0 ma rodzica −1 i się nie liczy
+    agenci = pd.DataFrame({
+        "przebieg": "X",
+        "pokolenie": [0, 0, 0, 1, 1, 1],
+        "id": [0, 1, 2, 10, 11, 12],
+        "id_rodzica": [-1, -1, -1, 0, 0, 2],
+    })
+    dylematy = pd.DataFrame({
+        "przebieg": "X",
+        "pokolenie": [0, 1, 1, 1, 1],
+        "id": [0, 10, 10, 12, 11],
+        "id_celu": [1, 11, 12, 10, 10],   # (0 → 1) pomijany; (10 → 11) i (11 → 10) to rodzeństwo
+    })
+
+    w = kalibracja.udzial_rodzenstwa(agenci, dylematy).set_index("przebieg").loc["X"]
+
+    assert w["liczba_dylematow"] == 4
+    assert w["udzial_rodzenstwa"] == pytest.approx(2 / 4)
+    # poziom losowy pokolenia 1: rodzina {10, 11} → Σ n(n − 1) = 2, N(N − 1) = 6
+    assert w["udzial_rodzenstwa_losowy"] == pytest.approx(1 / 3)
+
+
+def _podsumowanie_K4(korelacje, sd, dopuszczalne=(True, True, True, True)):
+    return pd.DataFrame({
+        "R": [1, 2, 5, 63], "korelacja": korelacje, "korelacja_sd": sd, "dopuszczalny": list(dopuszczalne),
+    })
+
+
+def test_wybierz_R_zostaje_bazowe_w_granicach_sd():
+    # R = 2 wyżej niż R = 63 o 0,05 przy sd 0,06 → remis, zostaje R = 2
+    tabela = _podsumowanie_K4([0.30, 0.25, 0.22, 0.20], [0.05, 0.06, 0.04, 0.03])
+
+    assert tabela.loc[kalibracja._wybierz_R(tabela), "R"] == 2
+
+
+def test_wybierz_R_odrzuca_zawyzona_korelacje():
+    # R = 1 i R = 2 przewyższają R = 63 o więcej niż sd → najmniejsze R w granicach: 5
+    tabela = _podsumowanie_K4([0.40, 0.35, 0.22, 0.20], [0.03, 0.04, 0.03, 0.02])
+
+    assert tabela.loc[kalibracja._wybierz_R(tabela), "R"] == 5
+
+
+def test_wybierz_R_pomija_niedopuszczalne_bazowe():
+    # R = 2 niedopuszczalne (np. wymarcie) → najmniejsze dopuszczalne w granicach sd: 1
+    tabela = _podsumowanie_K4([0.21, 0.20, 0.22, 0.20], [0.03] * 4, dopuszczalne=(True, False, True, True))
+
+    assert tabela.loc[kalibracja._wybierz_R(tabela), "R"] == 1
+
+
+def test_caly_skrypt_K4_na_malej_serii(tmp_path):
+    bazowa = tmp_path / "bazowa.toml"
+    bazowa.write_text(BAZOWA, encoding="utf-8")
+    katalog_serii = tmp_path / "wyniki" / "T4"
+    definicja = tmp_path / "T4.toml"
+    definicja.write_text(
+        f"""
+[seria]
+nazwa = "T4"
+bazowa = "{bazowa.as_posix()}"
+katalog = "{katalog_serii.as_posix()}"
+ziarna = [1, 2]
+
+[[warianty]]
+nazwa = "R1"
+"ewolucja.R" = 1
+
+[[warianty]]
+nazwa = "R7"
+"ewolucja.R" = 7
+""",
+        encoding="utf-8",
+    )
+    assert moralnosc_main(["seria", str(definicja)]) == 0
+
+    wyjscie = tmp_path / "analiza"
+    assert kalibracja.main(["K4", str(katalog_serii), "--wyjscie", str(wyjscie)]) == 0
+
+    for plik in ("K4_podsumowanie.csv", "K4_podsumowanie.tex", "K4_kontakty.pdf"):
+        assert (wyjscie / plik).exists(), plik
+    tabela = pd.read_csv(wyjscie / "K4_podsumowanie.csv")
+    assert tabela["R"].tolist() == [1, 7]
+    assert tabela["udzial_rodzenstwa"].between(0, 1).all()
+    assert "tab:K4" in (wyjscie / "K4_podsumowanie.tex").read_text(encoding="utf-8")

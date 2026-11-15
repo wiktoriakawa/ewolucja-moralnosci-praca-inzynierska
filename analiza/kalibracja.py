@@ -1,4 +1,4 @@
-"""Analiza serii kalibracyjnych K1, K2, K2b i K3.
+"""Analiza serii kalibracyjnych K1, K2, K2b, K3 i K4.
 
 Wejście: katalog serii z trybu serii (status.csv i katalogi przebiegów). Wyjście w --wyjscie:
 podsumowanie CSV i LaTeX oraz wykresy właściwe dla serii. Kryteria: plan_kalibracji.md.
@@ -67,6 +67,12 @@ MIARY_K3 = ["przezycie", "rho_iloraz", "korelacja", "pary", "M_pop_koniec", "udz
 MIN_ILORAZ_RHO = 0.25
 MIN_PAR = 30
 
+MIARY_K4 = [
+    "przezycie", "udzial_rodzenstwa", "udzial_rodzenstwa_losowy", "mediana_D_koniec",
+    "korelacja", "rho_iloraz", "M_pop_koniec", "udzial_awaryjny",
+]
+R_BAZOWE = 2  # rejestr decyzji D12
+
 NAZWY_WARIANTU = {
     "skala": "Skala",
     "tau": "$\\tau$",
@@ -93,6 +99,9 @@ ETYKIETY_TEX = {
     "korelacja": "Korelacja rodzic--potomek",
     "pary": "Pary ($D \\ge D_{\\min}$)",
     "M_pop_koniec": "$M_{\\mathrm{pop}}$ (koniec)",
+    "udzial_rodzenstwa": "Dylematy z rodzeństwem",
+    "udzial_rodzenstwa_losowy": "Rodzeństwo -- poziom losowy",
+    "mediana_D_koniec": "Mediana $D$ (koniec)",
 }
 
 
@@ -512,6 +521,130 @@ def wykres_K3(
     ek._zapisz_wykres(fig, plik_odziedziczalnosc)
 
 
+# --- K4: promień narodzin --------------------------------------------------------------
+
+def udzial_rodzenstwa(agenci: pd.DataFrame, dylematy: pd.DataFrame) -> pd.DataFrame:
+    """Na przebieg (pokolenia ≥ 1): udział dylematów, w których cel ma tego samego rodzica co agent,
+    i poziom losowy – szansa, że przypadkowy inny agent pokolenia jest rodzeństwem
+    (średnia po pokoleniach ważona liczbą dylematów)."""
+    rodzic = agenci.set_index(["przebieg", "pokolenie", "id"])["id_rodzica"]
+    d = dylematy[dylematy["pokolenie"].ge(1)]
+    r_agenta = rodzic.reindex(pd.MultiIndex.from_arrays([d["przebieg"], d["pokolenie"], d["id"]])).to_numpy()
+    r_celu = rodzic.reindex(pd.MultiIndex.from_arrays([d["przebieg"], d["pokolenie"], d["id_celu"]])).to_numpy()
+    d = d.assign(rodzenstwo=(r_agenta == r_celu) & (r_agenta != -1))
+
+    # poziom losowy pokolenia: Σ n_f (n_f − 1) / (N (N − 1)), n_f – liczba dzieci rodzica f
+    pok = agenci[agenci["pokolenie"].ge(1)]
+    rodziny = pok.groupby(["przebieg", "pokolenie", "id_rodzica"]).size()
+    pary_rodzenstwa = (rodziny * (rodziny - 1)).groupby(level=["przebieg", "pokolenie"]).sum()
+    n = pok.groupby(["przebieg", "pokolenie"]).size()
+    losowy = (pary_rodzenstwa / (n * (n - 1)).where(n > 1)).rename("losowy")
+    wagi = d.groupby(["przebieg", "pokolenie"]).size().rename("wagi")
+    wazone = pd.concat([losowy, wagi], axis=1, join="inner").dropna()
+
+    wynik = pd.DataFrame({
+        "udzial_rodzenstwa": d.groupby("przebieg")["rodzenstwo"].mean(),
+        "udzial_rodzenstwa_losowy": (wazone["losowy"] * wazone["wagi"]).groupby(level="przebieg").sum()
+        / wazone["wagi"].groupby(level="przebieg").sum(),
+        "liczba_dylematow": d.groupby("przebieg").size(),
+    })
+    return wynik.rename_axis("przebieg").reset_index()
+
+
+def wczytaj_rodzenstwo(katalog_serii: Path, przebiegi: list[str], agenci: pd.DataFrame) -> pd.DataFrame:
+    """udzial_rodzenstwa przebieg po przebiegu – z dylematy.csv tylko kolumny pokolenie, id, id_celu."""
+    tabele = []
+    for nazwa in przebiegi:
+        d = pd.read_csv(katalog_serii / nazwa / "dylematy.csv", usecols=["pokolenie", "id", "id_celu"])
+        tabele.append(udzial_rodzenstwa(agenci[agenci["przebieg"].eq(nazwa)], d.assign(przebieg=nazwa)))
+    return pd.concat(tabele, ignore_index=True)
+
+
+def _miary_przebiegow_K4(
+    pokolenia: pd.DataFrame, agenci: pd.DataFrame, rodzenstwo: pd.DataFrame, a: float, D_min: int, ostatnie: int
+) -> pd.DataFrame:
+    """Miary K4 dla każdego przebiegu: te same miary ewolucji co w K3, mediana D na końcu, rodzeństwo."""
+    miary = _miary_przebiegow_K3(pokolenia, agenci, a, D_min, ostatnie)
+    koniec = agenci[agenci["pokolenie"] > agenci.groupby("przebieg")["pokolenie"].transform("max") - ostatnie]
+    miary["mediana_D_koniec"] = koniec.groupby("przebieg")["D"].median()
+    miary = miary.join(rodzenstwo.set_index("przebieg")[["udzial_rodzenstwa", "udzial_rodzenstwa_losowy"]])
+    # plan, sekcja 5: miary końcowe tylko z przebiegów bez wymarcia
+    miary.loc[miary["przezycie"].eq(0), ["mediana_D_koniec", "udzial_rodzenstwa", "udzial_rodzenstwa_losowy"]] = np.nan
+    return miary.join(pokolenia.groupby("przebieg")[WARIANT["K4"]].first())
+
+
+def _wybierz_R(podsumowanie: pd.DataFrame) -> int | None:
+    """Indeks wybranego R: bazowe (D12), chyba że jego korelacja rodzic–potomek przewyższa korelację
+    przy narodzinach globalnych (największe R) o więcej niż sd – wtedy najmniejsze dopuszczalne R
+    w granicach sd. Próg = większe z dwóch sd, więc przy wątpliwościach zostaje R bazowe."""
+    globalne = podsumowanie.loc[podsumowanie["R"].idxmax()]
+
+    def w_granicach(wiersz: pd.Series) -> bool:
+        if pd.isna(wiersz["korelacja"]) or pd.isna(globalne["korelacja"]):
+            return True
+        prog = np.nanmax([wiersz["korelacja_sd"], globalne["korelacja_sd"], 0.0])
+        return wiersz["korelacja"] - globalne["korelacja"] <= prog
+
+    kandydaci = podsumowanie[podsumowanie["dopuszczalny"]].sort_values("R")
+    bazowe = kandydaci[kandydaci["R"].eq(R_BAZOWE)]
+    if not bazowe.empty and w_granicach(bazowe.iloc[0]):
+        return bazowe.index[0]
+    for indeks, wiersz in kandydaci.iterrows():
+        if w_granicach(wiersz):
+            return indeks
+    return None
+
+
+def podsumuj_K4(
+    pokolenia: pd.DataFrame,
+    agenci: pd.DataFrame,
+    rodzenstwo: pd.DataFrame,
+    a: float,
+    D_min: int,
+    ostatnie: int = 5,
+) -> pd.DataFrame:
+    """Wiersz = R: miary średnio po ziarnach (`_sd` – odchylenie), flaga „dopuszczalny” (bez wymarcia,
+    wariant awaryjny ≤ 10 % pokoleń w każdym ziarnie) i „wybrany” według kryterium K4 z planu."""
+    miary = _miary_przebiegow_K4(pokolenia, agenci, rodzenstwo, a, D_min, ostatnie)
+    grupy = miary.groupby(WARIANT["K4"])
+    wynik = pd.concat([grupy.size().rename("ziarna"), grupy[MIARY_K4].mean()], axis=1)
+    for miara in MIARY_K4[1:]:  # odchylenie przeżycia (0/1) nic nie mówi
+        wynik.insert(wynik.columns.get_loc(miara) + 1, f"{miara}_sd", grupy[miara].std())
+    wynik["udzial_awaryjny_max"] = grupy["udzial_awaryjny"].max()
+    wynik["dopuszczalny"] = wynik["przezycie"].eq(1.0) & wynik["udzial_awaryjny_max"].le(MAKS_UDZIAL_AWARYJNY)
+    wynik = wynik.reset_index()
+    wynik["wybrany"] = False
+    wybrany = _wybierz_R(wynik)
+    if wybrany is not None:
+        wynik.loc[wybrany, "wybrany"] = True
+    return wynik
+
+
+def wykres_K4(podsumowanie: pd.DataFrame, plik: Path) -> None:
+    """Dwa panele w funkcji R: udział dylematów z rodzeństwem (z poziomem losowym) i korelacja
+    rodzic–potomek; słupki = sd między ziarnami."""
+    t = podsumowanie.sort_values("R")
+    fig, (lewy, prawy) = plt.subplots(1, 2, figsize=(6.3, 2.4))
+    lewy.errorbar(t["R"], t["udzial_rodzenstwa"], yerr=t["udzial_rodzenstwa_sd"],
+                  marker="o", markersize=4, capsize=3, label="w dylematach")
+    lewy.errorbar(t["R"], t["udzial_rodzenstwa_losowy"], yerr=t["udzial_rodzenstwa_losowy_sd"],
+                  marker="s", markersize=3, capsize=3, linestyle="--", color="0.5", label="poziom losowy")
+    lewy.set_ylabel("udział rodzeństwa")
+    lewy.legend(fontsize="small", frameon=False)
+    prawy.errorbar(t["R"], t["korelacja"], yerr=t["korelacja_sd"], marker="o", markersize=4, capsize=3, color="C2")
+    prawy.axhline(0, color="0.6", linewidth=0.8)
+    prawy.set_ylabel("korelacja $M_{\\mathrm{wyg}}$ rodzic–potomek")
+    for os_ in (lewy, prawy):
+        os_.set_xscale("log")
+        os_.set_xticks(t["R"].tolist())
+        os_.set_xticklabels([f"{r:g}" for r in t["R"]])
+        os_.xaxis.set_minor_locator(NullLocator())
+        os_.set_xlabel("promień narodzin $R$")
+        ek._przecinki(os_)
+    fig.tight_layout()
+    ek._zapisz_wykres(fig, plik)
+
+
 # --- zapis i uruchomienie --------------------------------------------------------------
 
 def _komorka(wiersz: pd.Series, kolumna: str) -> str:
@@ -575,7 +708,7 @@ def utworz_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "seria",
         choices=sorted(WARIANT),
-        help="seria: K1, K2, K2b lub K3 (K4 – kolejny krok)",
+        help="seria: K1, K2, K2b, K3 lub K4",
     )
     parser.add_argument("katalog", type=Path, help="katalog serii z trybu serii")
     parser.add_argument("--wyjscie", type=Path, default=None, help="domyślnie wyniki/analiza/<seria>")
@@ -594,7 +727,7 @@ def main(argv: list[str] | None = None) -> int:
         ustaw_kodowanie(encoding="utf-8")
 
     arg = utworz_parser().parse_args(argv)
-    if arg.seria not in ("K1", "K2", "K2b", "K3"):
+    if arg.seria not in ("K1", "K2", "K2b", "K3", "K4"):
         print(f"Analiza serii {arg.seria} będzie w kolejnym PR.", file=sys.stderr)
         return 2
     wyjscie = arg.wyjscie or Path("wyniki/analiza") / arg.seria
@@ -710,6 +843,40 @@ def main(argv: list[str] | None = None) -> int:
             "korelacja",
             "korelacja_sd",
             "pary_min",
+            "wybrany",
+        ]
+
+    elif arg.seria == "K4":
+        rodzenstwo = wczytaj_rodzenstwo(arg.katalog, przebiegi, agenci)
+        podsumowanie = podsumuj_K4(pokolenia, agenci, rodzenstwo, arg.a, arg.D_min, arg.ostatnie)
+        ziarna = int(podsumowanie["ziarna"].max())
+        zapisz_podsumowanie(
+            podsumowanie,
+            wyjscie,
+            "K4_podsumowanie",
+            podpis=(
+                "Seria K4: pokrewieństwo sąsiadów, kontakty i odziedziczalność dla promieni narodzin $R$ "
+                f"(średnia po {ziarna} ziarnach, w nawiasie odchylenie między ziarnami; rodzeństwo -- udział "
+                "dylematów, w których cel ma tego samego rodzica co agent, i poziom losowy przy przypadkowym "
+                f"sąsiedztwie; korelacja $M_{{\\mathrm{{wyg}}}}$ ($a = {arg.a:g}$) rodzica i potomka dla par "
+                f"z $D \\ge {arg.D_min}$; „koniec” -- ostatnie {arg.ostatnie} pokoleń)"
+            ),
+            etykieta="tab:K4",
+            miary=MIARY_K4,
+        )
+        wykres_K4(podsumowanie, wyjscie / "K4_kontakty.pdf")
+        dopuszczalne = podsumowanie[podsumowanie["dopuszczalny"]].sort_values(
+            ["wybrany", "R"], ascending=[False, True]
+        )
+        opis_dopuszczalnych = (
+            "Dopuszczalne (bez wymarcia, wariant awaryjny <= 10% pokoleń w każdym ziarnie); pierwszy – wybrany:"
+        )
+        kolumny = [
+            "R",
+            "udzial_rodzenstwa",
+            "udzial_rodzenstwa_losowy",
+            "korelacja",
+            "korelacja_sd",
             "wybrany",
         ]
 
