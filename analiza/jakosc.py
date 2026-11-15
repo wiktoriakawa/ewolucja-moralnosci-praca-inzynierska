@@ -112,7 +112,13 @@ def _sprawdz_transfery_do_celu(
     kolumna_wartosci: str,
     nazwa_kontroli: str,
 ) -> dict[str, object]:
-    """Porównuje pomiary odbiorców lub ofiar z udanymi zdarzeniami."""
+    """Sprawdza, czy pomiar obejmuje transfery zapisane jako dylematy.
+
+    Kolumny agentów obejmują wszystkie udane transfery, natomiast
+    ``dylematy.csv`` tylko decyzje podjęte w dylematach. Zdarzenia z pliku są
+    więc dolnym ograniczeniem liczby i wartości transferów, a nie ich pełnym
+    wykazem.
+    """
     indeks_agentow = pd.MultiIndex.from_frame(agenci[["pokolenie", "id"]])
     udane = dylematy[dylematy["akcja"].eq(akcja) & dylematy["wynik"].eq(SUKCES)]
     agregaty = udane.groupby(["pokolenie", "id_celu"])["kwota"].agg(
@@ -123,18 +129,17 @@ def _sprawdz_transfery_do_celu(
     znane_cele = bool(agregaty.index.isin(indeks_agentow).all())
     agregaty = agregaty.reindex(indeks_agentow, fill_value=0)
 
-    zgodna_liczba = (
-        agenci[kolumna_liczby].to_numpy() == agregaty["liczba"].to_numpy()
+    zmierzona_liczba = agenci[kolumna_liczby].to_numpy()
+    zmierzona_wartosc = agenci[kolumna_wartosci].to_numpy()
+    obejmuje_liczbe = zmierzona_liczba >= agregaty["liczba"].to_numpy()
+    obejmuje_wartosc = (
+        zmierzona_wartosc + 1e-9 >= agregaty["wartosc"].to_numpy()
     )
-    zgodna_wartosc = np.isclose(
-        agenci[kolumna_wartosci].to_numpy(),
-        agregaty["wartosc"].to_numpy(),
-    )
-    zgodne = zgodna_liczba & zgodna_wartosc
+    obejmuje = obejmuje_liczbe & obejmuje_wartosc
     return _wynik_kontroli(
         nazwa_kontroli,
-        znane_cele and bool(zgodne.all()),
-        f"bledni_agenci={int((~zgodne).sum())}, znane_cele={znane_cele}",
+        znane_cele and bool(obejmuje.all()),
+        f"bledni_agenci={int((~obejmuje).sum())}, znane_cele={znane_cele}",
     )
 
 
@@ -275,6 +280,32 @@ def sprawdz_przebieg(
             f"bledne_pola={int((~nieujemne_transfery).sum().sum())}",
         )
     )
+
+    zgodna_wartosc_darow = np.isclose(
+        agenci["wartosc_otrzymanych_darow"],
+        agenci["liczba_otrzymanych_darow"] * kwota_dzielenia,
+    )
+    wyniki.append(
+        _wynik_kontroli(
+            "wartosc_darow_zgodna_z_liczba",
+            bool(zgodna_wartosc_darow.all()),
+            f"bledni_agenci={int((~zgodna_wartosc_darow).sum())}",
+        )
+    )
+
+    wartosc_kradziezy_w_zakresie = agenci[
+        "wartosc_kradziezy_jako_ofiara"
+    ].le(
+        agenci["liczba_kradziezy_jako_ofiara"] * maksymalna_kradziez + 1e-9
+    )
+    wyniki.append(
+        _wynik_kontroli(
+            "wartosc_kradziezy_w_zakresie_licznika",
+            bool(wartosc_kradziezy_w_zakresie.all()),
+            f"bledni_agenci={int((~wartosc_kradziezy_w_zakresie).sum())}",
+        )
+    )
+
     wyniki.append(
         _sprawdz_transfery_do_celu(
             agenci,
@@ -282,7 +313,7 @@ def sprawdz_przebieg(
             akcja=DZIEL,
             kolumna_liczby="liczba_otrzymanych_darow",
             kolumna_wartosci="wartosc_otrzymanych_darow",
-            nazwa_kontroli="otrzymane_dary_zgodne_ze_zdarzeniami",
+            nazwa_kontroli="otrzymane_dary_obejmuja_zdarzenia_z_dylematow",
         )
     )
     wyniki.append(
@@ -292,7 +323,7 @@ def sprawdz_przebieg(
             akcja=KRADNIJ,
             kolumna_liczby="liczba_kradziezy_jako_ofiara",
             kolumna_wartosci="wartosc_kradziezy_jako_ofiara",
-            nazwa_kontroli="kradzieze_ofiar_zgodne_ze_zdarzeniami",
+            nazwa_kontroli="kradzieze_ofiar_obejmuja_zdarzenia_z_dylematow",
         )
     )
 

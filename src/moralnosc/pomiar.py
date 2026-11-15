@@ -56,7 +56,9 @@ class Pomiar:
     N_o: NDArray[np.int64]
     D: NDArray[np.int64]  # N, liczba wszystkich napotkanych dylematów
 
-    # --- zasoby otrzymane lub utracone w interakcjach ---
+    # --- zasoby otrzymane lub utracone we wszystkich udanych interakcjach ---
+    # Liczniki obejmują także akcje wykonane poza dylematami. Udana kradzież
+    # z kwotą 0 zwiększa liczbę kradzieży, ale nie zwiększa ich wartości.
     liczba_otrzymanych_darow: NDArray[np.int64]
     wartosc_otrzymanych_darow: NDArray[np.float64]
     liczba_kradziezy_jako_ofiara: NDArray[np.int64]
@@ -141,6 +143,7 @@ def zarejestruj(
 
     Każda wybrana akcja zwiększa licznik zbiorczy. Udane dzielenie zapisuje
     zasoby otrzymane przez cel, a udana kradzież zasoby utracone przez ofiarę.
+    Liczniki transferów obejmują również interakcje wykonane poza dylematami.
     Jeżeli decyzja została podjęta w dylemacie, funkcja zwiększa ``D`` i
     dokładnie jeden z liczników ``S``, ``K`` lub ``N_o`` oraz zapisuje
     zdarzenie przeznaczone do ``dylematy.csv``. Zasoby w zdarzeniu pochodzą

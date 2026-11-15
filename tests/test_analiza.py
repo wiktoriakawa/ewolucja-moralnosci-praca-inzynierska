@@ -163,13 +163,29 @@ def test_sprawdz_przebieg_wykrywa_niezgodne_sumy_pokolenia():
 
 
 def test_sprawdz_przebieg_wykrywa_niezgodny_pomiar_otrzymanych_darow():
-    """Liczba i wartość darów odbiorcy muszą wynikać ze zdarzeń dzielenia."""
+    """Każdy zarejestrowany dar ma stałą wartość s."""
     pokolenia, agenci, dylematy = _tabele()
     agenci.loc[1, "wartosc_otrzymanych_darow"] = 2.0
 
     raport = sprawdz_przebieg(_konfiguracja(), pokolenia, agenci, dylematy)
 
-    kontrola = _kontrola(raport, "otrzymane_dary_zgodne_ze_zdarzeniami")
+    kontrola = _kontrola(raport, "wartosc_darow_zgodna_z_liczba")
+    assert kontrola["poprawna"] is False
+
+
+def test_sprawdz_przebieg_wykrywa_brak_daru_z_dylematow():
+    """Pomiar odbiorcy musi obejmować każdy dar zapisany w dylematy.csv."""
+    pokolenia, agenci, dylematy = _tabele()
+    agenci.loc[
+        1,
+        ["liczba_otrzymanych_darow", "wartosc_otrzymanych_darow"],
+    ] = [0, 0.0]
+
+    raport = sprawdz_przebieg(_konfiguracja(), pokolenia, agenci, dylematy)
+
+    kontrola = _kontrola(
+        raport, "otrzymane_dary_obejmuja_zdarzenia_z_dylematow"
+    )
     assert kontrola["poprawna"] is False
 
 
@@ -184,7 +200,39 @@ def test_sprawdz_przebieg_wykrywa_niezgodny_pomiar_ofiary_kradziezy():
 
     raport = sprawdz_przebieg(_konfiguracja(), pokolenia, agenci, dylematy)
 
-    kontrola = _kontrola(raport, "kradzieze_ofiar_zgodne_ze_zdarzeniami")
+    kontrola = _kontrola(
+        raport, "kradzieze_ofiar_obejmuja_zdarzenia_z_dylematow"
+    )
+    assert kontrola["poprawna"] is False
+
+
+def test_sprawdz_przebieg_dopuszcza_kradziez_poza_dylematem():
+    """Pomiar może zawierać transfery, których nie zapisano w dylematy.csv."""
+    pokolenia, agenci, dylematy = _tabele()
+    agenci.loc[
+        1,
+        ["liczba_kradziezy_jako_ofiara", "wartosc_kradziezy_jako_ofiara"],
+    ] = [1, 0.5]
+
+    raport = sprawdz_przebieg(_konfiguracja(), pokolenia, agenci, dylematy)
+
+    kontrola = _kontrola(
+        raport, "kradzieze_ofiar_obejmuja_zdarzenia_z_dylematow"
+    )
+    assert kontrola["poprawna"] is True
+
+
+def test_sprawdz_przebieg_wykrywa_zbyt_duza_wartosc_kradziezy():
+    """Łączna strata nie może przekraczać liczby kradzieży pomnożonej przez x."""
+    pokolenia, agenci, dylematy = _tabele()
+    agenci.loc[
+        1,
+        ["liczba_kradziezy_jako_ofiara", "wartosc_kradziezy_jako_ofiara"],
+    ] = [1, 1.5]
+
+    raport = sprawdz_przebieg(_konfiguracja(), pokolenia, agenci, dylematy)
+
+    kontrola = _kontrola(raport, "wartosc_kradziezy_w_zakresie_licznika")
     assert kontrola["poprawna"] is False
 
 
