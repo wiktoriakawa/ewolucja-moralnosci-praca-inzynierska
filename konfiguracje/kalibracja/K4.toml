@@ -12,12 +12,12 @@ ziarna = [701, 702, 703]
 [stale]
 "siec.h" = 8
 "przebieg.pokolenia" = 50
-# Do podmiany przed uruchomieniem: skala i tau – z K1, T i alfa – z K2, r i sigma – z K3
-# (teraz wartości bazowe).
-"obserwacje.skala" = 5.0
-"siec.tau" = 1.0
-"ewolucja.T" = 50.0
-"zasoby.alfa" = 1.0
+# Skala i tau – wybór z K1 (#28), T i alfa – wybór z K2b (#29).
+"obserwacje.skala" = 50.0
+"siec.tau" = 2.0
+"ewolucja.T" = 40.0
+"zasoby.alfa" = 0.95
+# Do podmiany przed uruchomieniem: r i sigma – wybór z K3 (teraz wartości bazowe).
 "ewolucja.r" = "auto"
 "ewolucja.sigma" = 0.2
 

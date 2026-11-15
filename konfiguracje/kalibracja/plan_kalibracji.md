@@ -1,6 +1,8 @@
 # Plan i macierz eksperymentów kalibracyjnych KM3 (issue #27)
 
-**Wersja 1.0 (14.11.2026).** Kryteria wyboru ustalone **przed** uruchomieniem pierwszej serii (K1) – kryterium akceptacji #27. Plan przygotowany z pomocą AI (Claude) na podstawie ustaleń zespołu; decyzje metodyczne: Wiktoria (A/R metodyki eksperymentów), akceptacja Wojtka przez zatwierdzenie PR. Tabele planu trafiają do dokumentu KM3 (p. 4.2, dodatek B). Serie K1, K3 i K4 mają pliki definicji obok (`K1.toml`, `K3.toml`, `K4.toml`); K2 i K5 przygotowuje Wojtek.
+**Wersja 1.1 (15.11.2026).** Kryteria wyboru każdej serii ustalono przed jej uruchomieniem (kryterium akceptacji #27). Decyzje metodyczne: Wiktoria (A/R metodyki eksperymentów); kryterium K2 – Wojtek (#29); akceptacja planu – zatwierdzenie PR przez oboje. Plan przygotowany z pomocą AI (Claude). Definicje serii leżą obok (`K1.toml`, `K2.toml`, `K2b.toml`, `K3.toml`, `K4.toml`); tabele planu trafiają do dokumentu KM3 (p. 4.2, dodatek B).
+
+Historia: 1.0 (14.11) – serie K1–K5 i kryteria przed K1; 1.1 (15.11) – kryterium K2 (ustalone przed K2), seria uzupełniająca K2b dodana po K2 i sprawdzenie odporności wyboru K2 na nowych ziarnach, doprecyzowane kryterium K4, szacunek kosztu bez wyników.
 
 ## 1. Cel
 
@@ -19,15 +21,16 @@ Zmiany wspólne dla KM3: `siec.h = 8` (rejestr decyzji D2; opcjonalna K1b sprawd
 | K1 | #28, Wiktoria | Czy softmax daje zróżnicowane decyzje? | skala ∈ {5, 10, 50} × τ ∈ {0,5; 1; 2} (`K1.toml`) | h = 8, α = 1,0, T = 50 | 10 × 300 | 401, 402, 403 | 27 | koncentracja decyzji agenta w pokoleniu 0 (mediana udziału najczęstszej akcji; P1: 0,89), entropia akcji populacji (pokolenie 0 i ostatnie 5), odsetek agentów z D ≥ 5, mediana D, udział zbierania na końcu, sd między ziarnami | (1) brak wymarcia w ≥ 2 z 3 ziaren; (2) mediana D w pokoleniu 0 ≥ 5; spośród spełniających – najniższa koncentracja w pokoleniu 0, a przy remisie (różnica < sd) wyższa entropia końcowa; τ = 1 i skala = 5 zostają, jeśli żaden wariant nie poprawia koncentracji o więcej niż sd |
 | K1b (opcjonalna) | #28, Wiktoria | Ile neuronów ukrytych? (karta tematu: „analiza efektywności różnych konfiguracji neuronowych”) | h ∈ {0, 4, 8, 16} | skala, τ z K1; α = 1,0; T = 50 | 10 × 300 | 401–403 | 12 | jak K1 + czas na pokolenie | h = 8, chyba że inne h daje niższą koncentrację o więcej niż sd przy czasie ≤ 2× h = 8; bez K1b → h = 8 z D2, porównanie w Lab04 |
 | K2 | #29, Wojtek | Gdzie selekcja działa bez wymierania? | T ∈ {30, 50, 70} × α ∈ {0,85; 1,0}; E0 nie jest zmieniane | skala = 50, τ = 2 i h = 8 z K1; E0 = 50 | 30 × 300 | 501, 502, 503 | 18 | przeżywalność, udział zakwalifikowanych wśród żywych, udział pokoleń z wariantem awaryjnym, wymarcia, zmienność między ziarnami | Odrzucamy warianty z wymarciem, z wariantem awaryjnym w ponad 10 % pokoleń albo z medianą udziału zakwalifikowanych wśród żywych poza przedziałem 10–50 %. Jeśli T = 50 i α = 1,0 spełniają warunki, pozostają wartościami referencyjnymi; w przeciwnym razie wybieramy wariant z najmniejszym udziałem mechanizmu awaryjnego, następnie z najmniejszą zmiennością między ziarnami, a przy dalszym remisie – najbliższy wartościom bazowym. |
-| K3 | #30, Wiktoria | Czy mutacja utrzymuje różnorodność? | r ∈ {0,5/L; 1/L; 3/L} × σ ∈ {0,1; 0,2; 0,4} (L = 120 przy h = 8, n_we = 5; `K3.toml`) | skala, τ z K1; T, α z K2 | 50 × 300 | 601, 602, 603 | 27 | różnorodność ρ (średnia odległość euklidesowa genomów) w pokoleniu 0 i ostatnim, iloraz ρ_koniec/ρ_0; korelacja M_wyg rodzic–potomek (pary z D ≥ 5) i liczba par; M_pop; wariant awaryjny | (1) brak wymarcia w ≥ 2 z 3 ziaren; (2) korelacja rodzic–potomek > 0 w każdym ziarnie przy ≥ 30 parach; (3) ρ_koniec/ρ_0 ≥ 0,25 po 50 pokoleniach; spośród spełniających – najwyższa korelacja; przy remisie (< sd) wartości bliższe bazowym (1/L, 0,2) |
-| K4 | #30, Wiktoria | Jak lokalność narodzin wpływa na wyniki? | R ∈ {1, 2, 5, 63} (63 = cała plansza dla każdego rodzica; `K4.toml`) | skala, τ z K1; T, α z K2; (r, σ) z K3 | 50 × 300 | 701, 702, 703 | 12 | udział dylematów między rodzeństwem (pokrewieństwo), mediana D (kontakty), M_pop, różnorodność końcowa, korelacja rodzic–potomek | R = 2 (D12) zostaje, chyba że korelacja rodzic–potomek przy R = 63 (narodziny globalne) jest niższa o więcej niż sd (wtedy część „odziedziczalności” to wspólne środowisko – opisać, R referencyjne do decyzji); wynik K4 służy głównie CA-4 |
+| K2b | #29, Wojtek | Czy na gęstszej siatce wokół wyniku K2 da się ograniczyć zmienność między ziarnami i wariant awaryjny? | T ∈ {40, 50, 60} × α ∈ {0,90; 0,95; 1,0} (`K2b.toml`) | jak K2 | 30 × 300 | 501, 502, 503 (jak K2, dla porównywalności – wyjątek od rozłącznych ziaren) | 27 | jak K2 | jak K2; odporność wybranego wariantu sprawdzamy na nowych ziarnach 504–506 (ta sama siatka, `K2b_walidacja.toml`) i opisujemy w dokumencie |
+| K3 | #30, Wiktoria | Czy mutacja utrzymuje różnorodność? | r ∈ {0,5/L; 1/L; 3/L} × σ ∈ {0,1; 0,2; 0,4} (L = 120 przy h = 8, n_we = 5; `K3.toml`) | skala, τ z K1; T, α z K2/K2b | 50 × 300 | 601, 602, 603 | 27 | różnorodność ρ (średnia odległość euklidesowa genomów) w pokoleniu 0 i ostatnim, iloraz ρ_koniec/ρ_0; korelacja M_wyg rodzic–potomek (pary z D ≥ 5) i liczba par; M_pop; wariant awaryjny | (1) brak wymarcia w ≥ 2 z 3 ziaren; (2) korelacja rodzic–potomek > 0 w każdym ziarnie przy ≥ 30 parach; (3) ρ_koniec/ρ_0 ≥ 0,25 po 50 pokoleniach; spośród spełniających – najwyższa korelacja; przy remisie (< sd) wartości bliższe bazowym (1/L, 0,2) |
+| K4 | #30, Wiktoria | Jak lokalność narodzin wpływa na wyniki? | R ∈ {1, 2, 5, 63} (63 = cała plansza dla każdego rodzica; `K4.toml`) | skala, τ z K1; T, α z K2/K2b; (r, σ) z K3 | 50 × 300 | 701, 702, 703 | 12 | udział dylematów między rodzeństwem (pokrewieństwo), mediana D (kontakty), M_pop, różnorodność końcowa, korelacja rodzic–potomek | (1) brak wymarcia i wariant awaryjny w najwyżej 10 % pokoleń w każdym ziarnie (jak K2); (2) R = 2 (D12) zostaje, jeżeli spełnia (1), a korelacja rodzic–potomek przy R = 2 nie przekracza korelacji przy R = 63 (narodziny globalne) o więcej niż sd; w przeciwnym razie część „odziedziczalności” przy R = 2 wynika ze wspólnego otoczenia – wybieramy najmniejsze R spełniające (1), dla którego różnica do R = 63 mieści się w sd; wynik K4 służy głównie CA-4 |
 | K5 | #31, Wojtek | Koszt konfiguracji referencyjnej | – (konfiguracja referencyjna) | wszystkie z K1–K4 | 500 × 300 (NF-06: 200 agentów × 500 pokoleń) | 801 | 1 (+1 powtórzenie NF-03) | czas, szczytowa RAM, rozmiar katalogu, kontrola jakości, NF-03 | NF-06: ≤ 30 min; NF-07: ≤ 8 GB RAM, ≤ 1 GB danych |
 
-Razem (bez K2 i K5): 27 + 12 + 27 + 12 = 78 przebiegów.
+Przebiegi: K1 27, K1b 12 (opcjonalnie), K2 18, K2b 27 (+ 27 w sprawdzeniu na ziarnach 504–506), K3 27, K4 12, K5 2.
 
 ## 4. Ziarna i powtórzenia
 
-- 3 ziarna na wariant (gdyby harmonogram się opóźnił – 2, z adnotacją w dokumencie); ziarna rozłączne z dotychczasowymi (próba przeżycia 1–5; pilotaż 101–105, 201–203, 301) i między seriami (4xx, 5xx, 6xx, 7xx, 8xx), żeby żaden wynik nie był „dopasowany” do ziarna z innej serii.
+- 3 ziarna na wariant (gdyby harmonogram się opóźnił – 2, z adnotacją w dokumencie); ziarna rozłączne z dotychczasowymi (próba przeżycia 1–5; pilotaż 101–105, 201–203, 301) i między seriami (4xx, 5xx, 6xx, 7xx, 8xx), żeby żaden wynik nie był „dopasowany” do ziarna z innej serii. Wyjątek: K2b zagęszcza siatkę K2 na tych samych ziarnach 501–503, więc wybór z K2b sprawdzamy na nowych ziarnach 504–506.
 - Wariant × ziarno = jeden przebieg w osobnym katalogu `wyniki/<seria>/<seria>_<wariant>_z<ziarno>/` (np. `wyniki/K1/K1_s10_t0.5_z402/`) z `konfiguracja.json` (konfiguracja, ziarno, commit – wersja kodu).
 - Agregacja: średnia po ziarnach ± odchylenie standardowe (w tabelach), linie ziaren + średnia (na wykresach, jak w Lab02 rys. przeżywalności). Niepewność = rozrzut między ziarnami; przy 3 ziarnach nie robimy testów istotności, tylko porównujemy różnice z sd.
 - Pokolenia: K1 – 10 (zróżnicowanie decyzji widać w pokoleniu 0 i w pierwszych pokoleniach adaptacji); K3, K4 – 50 (jak P2; różnorodność i odziedziczalność potrzebują wielu pokoleń); K5 – 500 (NF-06).
@@ -38,37 +41,35 @@ Przebieg, w którym wymarła populacja, liczy się jako „wymarcie” i wchodzi
 
 ## 6. Kontrola jakości
 
-Każdy przebieg przed analizą przechodzi `analiza/jakosc.py` (po #26 – z kontrolą nowych kolumn); dwa przebiegi z tym samym ziarnem w K5 muszą dać identyczne CSV (NF-03, `--porownaj`). Przebiegi niezaliczone są wyłączane i wymienione w dodatku B.
+Każdy przebieg przed analizą przechodzi `analiza/jakosc.py` (po #26 – z kontrolą nowych kolumn); dwa przebiegi z tym samym ziarnem w K5 muszą dać identyczne CSV (NF-03, `--porownaj`). Przebiegi niezaliczone są wyłączane i wymienione w dodatku B. Jeśli przyczyną jest błąd reguły kontroli, a nie danych (sprawdzony odtworzeniem przebiegu), przebieg zostaje w analizie, a wyjaśnienie trafia do dodatku B.
 
-## 7. Koszt (pomiary z 11.11.2026 i z serii K1 14.11.2026; Mac, Python 3.14.5, NumPy 2.5.4)
+## 7. Szacunek kosztu
 
-Czas na pokolenie: pomiar 11.11 (konfiguracja bazowa, α = 1,0, różnica czasu przebiegów 10 i 3 pokoleń) – h = 0 ok. 0,22 s, h = 8 ok. 0,33 s. Seria K1 (27 przebiegów × 10 pokoleń, h = 8) trwała 44 s od startu pierwszego do końca ostatniego przebiegu, czyli ok. 0,16 s na pokolenie razem z zapisem. Czas zależy od zachowania agentów, więc do szacunków bierzemy ostrożnie 0,33 s.
-
-Dane: K1 zajęło 394 MB – średnio 14,6 MB na przebieg (7,9–24,7 MB zależnie od wariantu), czyli ok. 1,5 MB na pokolenie, trzy razy więcej niż szacunek z pomiaru przy h = 0 (0,5 MB). 99 % to `dylematy.csv` (wiersz na każdy krok agenta przed sąsiadem). Szacunki niżej przy h = 8: 0,33 s i 1,5 MB na pokolenie.
+Ok. 0,33 s i ok. 1,5 MB na pokolenie przy h = 8 (czas – pomiar konfiguracji bazowej z 11.11; dane – rozmiar plików pierwszej serii, w 99 % `dylematy.csv`; Mac, Python 3.14.5, NumPy 2.5.4).
 
 | Seria | Przebiegów × pokoleń | Czas | Dane |
 |---|---|---|---|
-| K1 | 27 × 10 | 44 s (pomiar) | 394 MB (pomiar) |
-| K1b | 12 × 10 | ok. 1 min (h = 16 niemierzone) | ok. 180 MB |
+| K1 | 27 × 10 | ok. 1,5 min | ok. 0,4 GB |
+| K1b | 12 × 10 | ok. 1 min | ok. 0,2 GB |
+| K2 | 18 × 30 | ok. 3 min | ok. 0,8 GB |
+| K2b (+ sprawdzenie) | 27 × 30 (+ 27 × 30) | ok. 4,5 min (+ 4,5 min) | ok. 1,2 GB (+ 1,2 GB) |
 | K3 | 27 × 50 | ok. 7,5 min | ok. 2,0 GB |
 | K4 | 12 × 50 | ok. 3,5 min | ok. 0,9 GB |
 | K5 | 1 × 500 (×2) | ok. 3 min (×2) | ok. 0,75 GB (×2) – blisko NF-07 (≤ 1 GB na przebieg) |
 
-K1, K3 i K4 razem to ok. 12 min obliczeń i ok. 3,3 GB danych w `wyniki/` (poza Gitem) – mieści się w jednym wieczorze i na dysku; wąskim gardłem jest analiza i opis, nie obliczenia.
+Razem ok. 35 min obliczeń i ok. 8 GB danych w `wyniki/` (poza Gitem); wąskim gardłem jest analiza i opis, nie obliczenia.
 
 ## 8. Wykonanie
 
-Tryb serii (#23, w `main` od PR #41), z katalogu `kod/`:
+Każdą serię uruchamiamy trybem serii (#23) z katalogu `kod/`, raz, do pustego katalogu:
 
 ```bash
-PYTHONPATH=src python -m moralnosc seria konfiguracje/kalibracja/K1.toml
+PYTHONPATH=src python -m moralnosc seria konfiguracje/kalibracja/<seria>.toml
 ```
 
-Stan przebiegów zapisuje `wyniki/<seria>/status.csv`; do analizy idą tylko przebiegi `zakonczony`, pozostałe wymieniamy w dodatku B. Commit, Python i NumPy każdego przebiegu są w jego `konfiguracja.json` (metadane). Każdą serię uruchamiamy raz, do pustego katalogu (po ponownym uruchomieniu przerwany przebieg dostaje status `pominiety` – poprawka zgłoszona w recenzji #38).
+Do analizy idą tylko przebiegi ze statusem `zakonczony` w `wyniki/<seria>/status.csv`; wersja kodu, Python i NumPy są w `konfiguracja.json` każdego przebiegu. Wartości przejmowane z wcześniejszych serii wpisujemy do `[stale]` w pliku serii przed jej uruchomieniem, z komentarzem o źródle. Wartości r w `K3.toml` są liczone dla L = 120 (h = 8).
 
-Przed K3 i K4 w ich plikach podmieniamy wartości oznaczone „do podmiany” na wybrane w K1 (skala, τ), K2 (T, α) i – dla K4 – K3 (r, σ); podmianę i jej źródło zapisujemy w opisie PR analizy (P6/P7). Wartości r w `K3.toml` są liczone dla L = 120 (h = 8); gdyby K1b zmieniła h, przeliczamy je dla nowego L = 6h + 8(h + 1).
-
-Analiza: `python -m analiza.kalibracja <seria> wyniki/<seria> --wyjscie wyniki/analiza/<seria>` (tabele CSV i LaTeX, wykresy PDF o stałych nazwach).
+Analiza: `PYTHONPATH=src python -m analiza.kalibracja <seria> wyniki/<seria> --wyjscie wyniki/analiza/<seria>` (tabele CSV i LaTeX, wykresy PDF o stałych nazwach).
 
 ## 9. Macierz przebiegów (dodatek B dokumentu)
 
