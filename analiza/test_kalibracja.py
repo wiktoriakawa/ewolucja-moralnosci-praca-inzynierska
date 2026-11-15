@@ -26,6 +26,35 @@ def test_entropia_nie_zmienia_wejscia():
     pd.testing.assert_frame_equal(pokolenia, kopia)
 
 
+def test_przebiegi_serii_tylko_zakonczone(tmp_path, capsys):
+    # status.csv z trybu serii: do analizy tylko „zakonczony”, reszta wypisana na stderr
+    katalog = tmp_path / "K1"
+    katalog.mkdir()
+    pd.DataFrame({
+        "id": ["K1_a_z1", "K1_b_z1", "K1_c_z1"],
+        "wariant": ["a", "b", "c"],
+        "ziarno": [1, 1, 1],
+        "status": ["zakonczony", "blad", "pominiety"],
+        "katalog": ["wyniki/K1/K1_a_z1", "wyniki/K1/K1_b_z1", "wyniki/K1/K1_c_z1"],
+        "blad": ["", "ValueError: x", "katalog wynikowy nie jest pusty"],
+    }).to_csv(katalog / "status.csv", index=False)
+
+    przebiegi = kalibracja._przebiegi_serii(katalog)
+
+    assert przebiegi == [katalog / "K1_a_z1"]
+    bledy = capsys.readouterr().err
+    assert "K1_b_z1" in bledy and "K1_c_z1" in bledy
+
+
+def test_przebiegi_serii_bez_statusu(tmp_path):
+    # bez status.csv: posortowane podkatalogi z konfiguracja.json, inne pomijane
+    for nazwa in ("P_b", "P_a"):
+        (tmp_path / nazwa).mkdir()
+        (tmp_path / nazwa / "konfiguracja.json").write_text("{}", encoding="utf-8")
+    (tmp_path / "bez_konfiguracji").mkdir()
+
+    assert kalibracja._przebiegi_serii(tmp_path) == [tmp_path / "P_a", tmp_path / "P_b"]
+
 def _akcje(**liczniki) -> dict[str, int]:
     return {f"akcja_{k}": liczniki.get(f"a{k}", 0) for k in range(8)}
 
