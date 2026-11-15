@@ -17,9 +17,9 @@ ziarna = [701, 702, 703]
 "siec.tau" = 2.0
 "ewolucja.T" = 40.0
 "zasoby.alfa" = 0.95
-# Do podmiany przed uruchomieniem: r i sigma – wybór z K3 (teraz wartości bazowe).
-"ewolucja.r" = "auto"
-"ewolucja.sigma" = 0.2
+# r = 3/L (L = 120) i sigma = 0,4 – wybór z K3 (#30).
+"ewolucja.r" = 0.025
+"ewolucja.sigma" = 0.4
 
 # 4 promienie = 4 warianty, czyli 12 przebiegów. R = 2 to wartość bazowa (D12);
 # R = 63 obejmuje całą planszę 64×64 z każdego pola (narodziny globalne).
