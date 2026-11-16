@@ -1,0 +1,65 @@
+# K2b: walidacja odporności wyboru T i alfa na nowych ziarnach.
+# Siatka i pozostałe warunki są identyczne jak w K2b; zmieniają się tylko ziarna.
+
+[seria]
+nazwa = "K2b_walidacja"
+# Pytanie: czy wybór z K2b pozostaje dopuszczalny dla nowych losowań?
+bazowa = "konfiguracje/bazowa.toml"
+katalog = "wyniki/K2b_walidacja"
+ziarna = [504, 505, 506]
+
+[stale]
+# Wartości wybrane w K1.
+"obserwacje.skala" = 50.0
+"siec.tau" = 2.0
+"siec.h" = 8
+
+# Warunki pozostają takie same jak w K2 i K2b.
+"ewolucja.E0" = 50.0
+"przebieg.pokolenia" = 30
+
+# Ta sama siatka co w K2b: 9 wariantów, czyli 27 przebiegów.
+[[warianty]]
+nazwa = "T40_a0.90"
+"ewolucja.T" = 40.0
+"zasoby.alfa" = 0.90
+
+[[warianty]]
+nazwa = "T40_a0.95"
+"ewolucja.T" = 40.0
+"zasoby.alfa" = 0.95
+
+[[warianty]]
+nazwa = "T40_a1"
+"ewolucja.T" = 40.0
+"zasoby.alfa" = 1.0
+
+[[warianty]]
+nazwa = "T50_a0.90"
+"ewolucja.T" = 50.0
+"zasoby.alfa" = 0.90
+
+[[warianty]]
+nazwa = "T50_a0.95"
+"ewolucja.T" = 50.0
+"zasoby.alfa" = 0.95
+
+[[warianty]]
+nazwa = "T50_a1"
+"ewolucja.T" = 50.0
+"zasoby.alfa" = 1.0
+
+[[warianty]]
+nazwa = "T60_a0.90"
+"ewolucja.T" = 60.0
+"zasoby.alfa" = 0.90
+
+[[warianty]]
+nazwa = "T60_a0.95"
+"ewolucja.T" = 60.0
+"zasoby.alfa" = 0.95
+
+[[warianty]]
+nazwa = "T60_a1"
+"ewolucja.T" = 60.0
+"zasoby.alfa" = 1.0
