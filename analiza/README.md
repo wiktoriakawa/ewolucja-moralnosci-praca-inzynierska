@@ -83,3 +83,40 @@ wartość `NaN`.
 Program zwraca kod `0`, jeżeli wszystkie kontrole jakości przeszły, oraz
 kod `1`, jeżeli wykryto niezgodność. Szczegóły znajdują się wtedy w pliku
 `kontrola_jakosci.csv`.
+
+## Opłacalność kradzieży i ciągi dylematów
+
+Skrypt `oplacalnosc_kradziezy.py` liczy z plików `dylematy.csv` pilotażu, bez nowej
+symulacji, dwie tabele do decyzji o biernych dylematach (#21):
+
+- odsetek dylematów, w których hipotetyczny oczekiwany zysk z kradzieży
+  `p · min(x, zasoby_celu) − c_k` był ujemny – przy zasobach celu z początku kroku,
+  a nie w chwili wykonania kradzieży;
+- ciągi dylematów (kolejne kroki z zapisanym dylematem wobec tego samego celu)
+  oraz udział akcji obojętnych u agentów z `D ≥ 200`.
+
+Dane wejściowe: lokalny katalog z podkatalogami przebiegów P1–P2 (np. `P1_z101`,
+`P2_niedobor_z201`), w każdym `konfiguracja.json` i `dylematy.csv`. Opcja `--serie`
+wybiera przebiegi po początku nazwy (domyślnie `P1 P2`); `p`, `x` i `c_k` muszą być
+takie same we wszystkich przebiegach.
+
+```powershell
+$env:PYTHONPATH = "src"
+python -m analiza.oplacalnosc_kradziezy lokalne/wyniki_pilotazu `
+    --serie P1 P2 --wyjscie wyniki/analiza/oplacalnosc
+```
+
+Skrypt tworzy (wiersz = seria i `alfa`):
+
+- `oplacalnosc.csv` – liczbę przebiegów i dylematów, `ujemny_zysk` (odsetek łącznie
+  dla ziaren, więc ważony liczbą dylematów), `ujemny_zysk_min` i `ujemny_zysk_max`
+  (zakres odsetka w przebiegach) oraz te same odsetki wśród kradzieży i dzieleń;
+- `ciagi_dylematow.csv` – liczbę agentów z `D ≥ 1`, mediany `D` i liczby ciągów,
+  `udzial_D200`, `dlugie_ciagi_wsrod_D200` (udział agentów z najwyżej 2 ciągami –
+  długie powtarzanie dylematu, niekoniecznie bierność), `obojetne_wsrod_D200`
+  (średni udział akcji obojętnych w dylematach agenta) i `ciagi_na_D`. Gdy żaden
+  agent nie ma `D ≥ 200`, obie miary „wśród D200” mają wartość `NaN`.
+
+Ciąg nie jest pełnym fizycznym spotkaniem: krok, w którym cel stoi dalej przed
+agentem, ale warunki dylematu nie są spełnione, nie ma wiersza w `dylematy.csv`
+i przerywa ciąg.

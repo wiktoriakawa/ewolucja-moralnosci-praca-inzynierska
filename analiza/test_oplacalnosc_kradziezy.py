@@ -1,6 +1,7 @@
 """Testy analiza/oplacalnosc_kradziezy.py – wartości policzone ręcznie."""
 import json
 
+import numpy as np
 import pandas as pd
 import pytest
 
@@ -19,8 +20,8 @@ def test_oczekiwany_zysk_recznie():
 
 @pytest.fixture
 def dylematy():
-    """Agent 1: kroki 0–2 przed celem 9, krok 3 przed 8, krok 7 znów przed 9 → 3 spotkania, D = 5,
-    najdłuższe 3; agent 2: kroki 4–5 przed celem 1 → 1 spotkanie, D = 2."""
+    """Agent 1: kroki 0–2 przed celem 9, krok 3 przed 8, krok 7 znów przed 9 → 3 ciągi, D = 5,
+    najdłuższy 3, 3 akcje obojętne; agent 2: kroki 4–5 przed celem 1 → 1 ciąg, D = 2, 2 obojętne."""
     return pd.DataFrame(
         {
             "przebieg": ["X"] * 7,
@@ -36,15 +37,11 @@ def dylematy():
     )
 
 
-def test_spotkania_policzone_recznie(dylematy):
-    wynik = ok.spotkania(dylematy).set_index("id")
+def test_ciagi_dylematow_policzone_recznie(dylematy):
+    wynik = ok.ciagi_dylematow(dylematy).set_index("id")
 
-    assert wynik.loc[1, "D"] == 5
-    assert wynik.loc[1, "spotkania"] == 3
-    assert wynik.loc[1, "najdluzsze"] == 3
-    assert wynik.loc[2, "D"] == 2
-    assert wynik.loc[2, "spotkania"] == 1
-    assert wynik.loc[2, "najdluzsze"] == 2
+    assert wynik.loc[1, ["D", "ciagi", "najdluzszy", "obojetne"]].tolist() == [5, 3, 3, 3]
+    assert wynik.loc[2, ["D", "ciagi", "najdluzszy", "obojetne"]].tolist() == [2, 1, 2, 2]
 
 
 def test_podsumuj_oplacalnosc(dylematy):
@@ -52,39 +49,85 @@ def test_podsumuj_oplacalnosc(dylematy):
 
     assert len(wynik) == 1
     w = wynik.iloc[0]
-    assert (w["seria"], w["alfa"], w["n"]) == ("X", 1.0, 7)
+    assert (w["seria"], w["alfa"], w["n"], w["przebiegi"]) == ("X", 1.0, 7, 1)
     assert w["ujemny_zysk"] == pytest.approx(2 / 7)          # zasoby celu 1,0 i 0,5
+    assert (w["ujemny_zysk_min"], w["ujemny_zysk_max"]) == pytest.approx((2 / 7, 2 / 7))
     assert (w["n_kradziezy"], w["ujemny_wsrod_kradziezy"]) == (1, 0.0)  # kradzież przy zasobach 3,0
     assert (w["n_dzielen"], w["ujemny_wsrod_dzielen"]) == (1, 0.0)
 
 
-def test_spotkania_nie_laczy_pokolen():
-    # ten sam agent i cel w ostatnim kroku pokolenia 0 i pierwszym pokolenia 1 – dwa spotkania
-    dylematy = pd.DataFrame(
-        {"przebieg": ["X", "X"], "pokolenie": [0, 1], "krok": [299, 0], "id": [1, 1], "id_celu": [9, 9]}
-    )
+def test_oplacalnosc_wazona_liczba_dylematow_z_zakresem_przebiegow():
+    # przebieg A: 4 dylematy, 1 z ujemnym zyskiem (25 %); B: 1 dylemat, ujemny (100 %)
+    d = pd.DataFrame({
+        "przebieg": ["A"] * 4 + ["B"], "seria": "X", "alfa": 1.0,
+        "zasoby_celu": [1.0, 3.0, 3.0, 3.0, 1.0], "klasa": "obojetna",
+    })
 
-    wynik = ok.spotkania(dylematy)
+    w = ok.podsumuj_oplacalnosc(d, p=0.5, x=5.0, c_k=1.0).iloc[0]
+
+    assert w["przebiegi"] == 2
+    assert w["ujemny_zysk"] == pytest.approx(2 / 5)  # łącznie – większy przebieg waży więcej
+    assert (w["ujemny_zysk_min"], w["ujemny_zysk_max"]) == pytest.approx((0.25, 1.0))
+
+
+def test_ciagi_nie_lacza_pokolen():
+    # ten sam agent i cel w ostatnim kroku pokolenia 0 i pierwszym pokolenia 1 – dwa ciągi
+    dylematy = pd.DataFrame({
+        "przebieg": ["X", "X"], "pokolenie": [0, 1], "krok": [299, 0], "id": [1, 1], "id_celu": [9, 9],
+        "klasa": ["obojetna", "kradziez"],
+    })
+
+    wynik = ok.ciagi_dylematow(dylematy)
 
     assert wynik["pokolenie"].tolist() == [0, 1]
-    assert wynik["spotkania"].tolist() == [1, 1]
+    assert wynik["ciagi"].tolist() == [1, 1]
     assert wynik["D"].tolist() == [1, 1]
 
 
-def test_podsumuj_spotkania_recznie():
-    # trzech agentów: D = 250 w 1 spotkaniu (bierny), D = 300 w 5 spotkaniach, D = 3 w 2 spotkaniach
-    tabela = pd.DataFrame(
-        {"seria": "X", "alfa": 1.0, "D": [250, 300, 3], "spotkania": [1, 5, 2], "najdluzsze": [250, 100, 2]}
-    )
+def test_podsumuj_ciagi_recznie():
+    # trzech agentów: D = 250 w 1 ciągu (same obojętne), D = 300 w 5 ciągach (połowa obojętnych),
+    # D = 3 w 2 ciągach (bez obojętnych)
+    tabela = pd.DataFrame({
+        "seria": "X", "alfa": 1.0, "D": [250, 300, 3], "ciagi": [1, 5, 2],
+        "najdluzszy": [250, 100, 2], "obojetne": [250, 150, 0],
+    })
 
-    w = ok.podsumuj_spotkania(tabela).iloc[0]
+    w = ok.podsumuj_ciagi(tabela).iloc[0]
 
     assert w["agenci"] == 3
     assert w["mediana_D"] == 250
-    assert w["mediana_spotkan"] == 2
+    assert w["mediana_ciagow"] == 2
     assert w["udzial_D200"] == pytest.approx(2 / 3)
-    assert w["bierni_wsrod_D200"] == pytest.approx(1 / 2)
-    assert w["spotkania_na_D"] == pytest.approx(8 / 553)
+    assert w["dlugie_ciagi_wsrod_D200"] == pytest.approx(1 / 2)
+    assert w["obojetne_wsrod_D200"] == pytest.approx((1.0 + 0.5) / 2)  # średnia po agentach
+    assert w["ciagi_na_D"] == pytest.approx(8 / 553)
+
+
+def test_dlugi_ciag_kradziezy_to_powtarzanie_a_nie_biernosc():
+    # agent kradnie przez 250 kolejnych kroków temu samemu celowi: jeden długi ciąg, zero obojętnych
+    kroki = np.arange(250)
+    dylematy = pd.DataFrame({
+        "przebieg": "X", "pokolenie": 0, "krok": kroki, "id": 1, "id_celu": 9, "klasa": "kradziez",
+    })
+
+    agenci = ok.ciagi_dylematow(dylematy).assign(seria="X", alfa=1.0)
+    w = ok.podsumuj_ciagi(agenci).iloc[0]
+
+    assert agenci[["D", "ciagi", "obojetne"]].iloc[0].tolist() == [250, 1, 0]
+    assert w["dlugie_ciagi_wsrod_D200"] == 1.0
+    assert w["obojetne_wsrod_D200"] == 0.0
+
+
+def test_bez_agentow_z_duzym_D_miary_D200_to_nan():
+    tabela = pd.DataFrame({
+        "seria": "X", "alfa": 1.0, "D": [3, 10], "ciagi": [2, 4], "najdluzszy": [2, 5], "obojetne": [1, 5],
+    })
+
+    w = ok.podsumuj_ciagi(tabela).iloc[0]
+
+    assert w["udzial_D200"] == 0.0
+    assert np.isnan(w["dlugie_ciagi_wsrod_D200"])
+    assert np.isnan(w["obojetne_wsrod_D200"])
 
 
 def test_main_na_malych_danych(tmp_path, dylematy):
@@ -102,4 +145,6 @@ def test_main_na_malych_danych(tmp_path, dylematy):
     oplacalnosc = pd.read_csv(wyjscie / "oplacalnosc.csv")
     assert oplacalnosc[["seria", "alfa"]].values.tolist() == [["P1", 1.0], ["P2", 0.85]]
     assert oplacalnosc["ujemny_zysk"].tolist() == pytest.approx([2 / 7, 2 / 7], abs=1e-4)
-    assert len(pd.read_csv(wyjscie / "spotkania.csv")) == 2
+    ciagi = pd.read_csv(wyjscie / "ciagi_dylematow.csv")
+    assert len(ciagi) == 2
+    assert ciagi["mediana_ciagow"].tolist() == [2.0, 2.0]  # agenci z 3 i 1 ciągiem
