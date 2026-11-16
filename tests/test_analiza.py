@@ -36,6 +36,7 @@ def _tabele():
                 "przezywalnosc": 0.5,
                 "zakwalifikowani": 1,
                 "awaryjny": False,
+                "roznorodnosc": 0.5,
                 "S": 1,
                 "K": 0,
                 "N_o": 0,
@@ -54,6 +55,10 @@ def _tabele():
                 "K": 0,
                 "N_o": 0,
                 "D": 1,
+                "liczba_otrzymanych_darow": 0,
+                "wartosc_otrzymanych_darow": 0.0,
+                "liczba_kradziezy_jako_ofiara": 0,
+                "wartosc_kradziezy_jako_ofiara": 0.0,
                 "zasoby_koniec": 2.0,
                 "kwalifikacja": True,
                 "krok_smierci": 2,
@@ -67,6 +72,10 @@ def _tabele():
                 "K": 0,
                 "N_o": 0,
                 "D": 0,
+                "liczba_otrzymanych_darow": 1,
+                "wartosc_otrzymanych_darow": 1.0,
+                "liczba_kradziezy_jako_ofiara": 0,
+                "wartosc_kradziezy_jako_ofiara": 0.0,
                 "zasoby_koniec": -0.1,
                 "kwalifikacja": False,
                 "krok_smierci": 1,
@@ -121,6 +130,17 @@ def test_sprawdz_przebieg_wykrywa_niezgodne_D():
     assert kontrola["poprawna"] is False
 
 
+def test_sprawdz_przebieg_wykrywa_ujemna_roznorodnosc():
+    """Różnorodność genetyczna nie może być liczbą ujemną."""
+    pokolenia, agenci, dylematy = _tabele()
+    pokolenia.loc[0, "roznorodnosc"] = -0.1
+
+    raport = sprawdz_przebieg(_konfiguracja(), pokolenia, agenci, dylematy)
+
+    kontrola = _kontrola(raport, "roznorodnosc_skonczona_i_nieujemna")
+    assert kontrola["poprawna"] is False
+
+
 def test_sprawdz_przebieg_wykrywa_krok_konca_u_zmarlego():
     """Zmarły agent nie może mieć kroku oznaczającego przeżycie."""
     pokolenia, agenci, dylematy = _tabele()
@@ -140,6 +160,90 @@ def test_sprawdz_przebieg_wykrywa_niezgodne_sumy_pokolenia():
 
     kontrola = _kontrola(raport, "sumy_agentow_rowne_pokoleniom")
     assert kontrola["poprawna"] is False
+
+
+def test_sprawdz_przebieg_wykrywa_niezgodny_pomiar_otrzymanych_darow():
+    """Każdy zarejestrowany dar ma stałą wartość s."""
+    pokolenia, agenci, dylematy = _tabele()
+    agenci.loc[1, "wartosc_otrzymanych_darow"] = 2.0
+
+    raport = sprawdz_przebieg(_konfiguracja(), pokolenia, agenci, dylematy)
+
+    kontrola = _kontrola(raport, "wartosc_darow_zgodna_z_liczba")
+    assert kontrola["poprawna"] is False
+
+
+def test_sprawdz_przebieg_wykrywa_brak_daru_z_dylematow():
+    """Pomiar odbiorcy musi obejmować każdy dar zapisany w dylematy.csv."""
+    pokolenia, agenci, dylematy = _tabele()
+    agenci.loc[
+        1,
+        ["liczba_otrzymanych_darow", "wartosc_otrzymanych_darow"],
+    ] = [0, 0.0]
+
+    raport = sprawdz_przebieg(_konfiguracja(), pokolenia, agenci, dylematy)
+
+    kontrola = _kontrola(
+        raport, "otrzymane_dary_obejmuja_zdarzenia_z_dylematow"
+    )
+    assert kontrola["poprawna"] is False
+
+
+def test_sprawdz_przebieg_wykrywa_niezgodny_pomiar_ofiary_kradziezy():
+    """Strata ofiary musi odpowiadać udanej kradzieży skierowanej do niej."""
+    pokolenia, agenci, dylematy = _tabele()
+    dylematy.loc[0, ["akcja", "klasa"]] = [6, "kradziez"]
+    agenci.loc[1, ["liczba_otrzymanych_darow", "wartosc_otrzymanych_darow"]] = [
+        0,
+        0.0,
+    ]
+
+    raport = sprawdz_przebieg(_konfiguracja(), pokolenia, agenci, dylematy)
+
+    kontrola = _kontrola(
+        raport, "kradzieze_ofiar_obejmuja_zdarzenia_z_dylematow"
+    )
+    assert kontrola["poprawna"] is False
+
+
+def test_sprawdz_przebieg_dopuszcza_kradziez_poza_dylematem():
+    """Pomiar może zawierać transfery, których nie zapisano w dylematy.csv."""
+    pokolenia, agenci, dylematy = _tabele()
+    agenci.loc[
+        1,
+        ["liczba_kradziezy_jako_ofiara", "wartosc_kradziezy_jako_ofiara"],
+    ] = [1, 0.5]
+
+    raport = sprawdz_przebieg(_konfiguracja(), pokolenia, agenci, dylematy)
+
+    kontrola = _kontrola(
+        raport, "kradzieze_ofiar_obejmuja_zdarzenia_z_dylematow"
+    )
+    assert kontrola["poprawna"] is True
+
+
+def test_sprawdz_przebieg_wykrywa_zbyt_duza_wartosc_kradziezy():
+    """Łączna strata nie może przekraczać liczby kradzieży pomnożonej przez x."""
+    pokolenia, agenci, dylematy = _tabele()
+    agenci.loc[
+        1,
+        ["liczba_kradziezy_jako_ofiara", "wartosc_kradziezy_jako_ofiara"],
+    ] = [1, 1.5]
+
+    raport = sprawdz_przebieg(_konfiguracja(), pokolenia, agenci, dylematy)
+
+    kontrola = _kontrola(raport, "wartosc_kradziezy_w_zakresie_licznika")
+    assert kontrola["poprawna"] is False
+
+
+def test_sprawdz_przebieg_wykrywa_ujemny_licznik_transferow():
+    """Liczniki i wartości transferów nie mogą być ujemne."""
+    pokolenia, agenci, dylematy = _tabele()
+    agenci.loc[0, "liczba_kradziezy_jako_ofiara"] = -1
+
+    raport = sprawdz_przebieg(_konfiguracja(), pokolenia, agenci, dylematy)
+
+    assert _kontrola(raport, "nieujemne_transfery")["poprawna"] is False
 
 
 def test_sprawdz_przebieg_wykrywa_kwalifikacje_zmarlego():
@@ -219,6 +323,32 @@ def test_sprawdz_przebieg_wykrywa_zbyt_duza_kwote_kradziezy():
     raport = sprawdz_przebieg(_konfiguracja(), pokolenia, agenci, dylematy)
 
     assert _kontrola(raport, "kwota_kradziezy")["poprawna"] is False
+
+
+def test_sprawdz_przebieg_dopuszcza_udana_kradziez_z_kwota_zero():
+    """Udane losowanie może nic nie zabrać wcześniej opróżnionej ofierze."""
+    pokolenia, agenci, dylematy = _tabele()
+    pokolenia.loc[0, ["S", "K"]] = [0, 1]
+    agenci.loc[0, ["S", "K"]] = [0, 1]
+    agenci.loc[
+        1,
+        [
+            "liczba_otrzymanych_darow",
+            "wartosc_otrzymanych_darow",
+            "liczba_kradziezy_jako_ofiara",
+            "wartosc_kradziezy_jako_ofiara",
+        ],
+    ] = [0, 0.0, 1, 0.0]
+    dylematy.loc[0, ["akcja", "klasa", "wynik", "kwota"]] = [
+        6,
+        "kradziez",
+        "sukces",
+        0.0,
+    ]
+
+    raport = sprawdz_przebieg(_konfiguracja(), pokolenia, agenci, dylematy)
+
+    assert all(kontrola["poprawna"] for kontrola in raport)
 
 
 def test_sprawdz_przebieg_wykrywa_kwote_niewykonanej_akcji():
