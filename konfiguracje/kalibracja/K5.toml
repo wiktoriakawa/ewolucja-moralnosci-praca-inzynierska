@@ -1,0 +1,18 @@
+# K5: weryfikacja kosztu i powtarzalności konfiguracji referencyjnej KM3.
+# Dwa warianty nie zmieniają parametrów modelu. Tworzą dwa osobne przebiegi
+# z tym samym ziarnem, potrzebne do sprawdzenia wymagania NF-03.
+
+[seria]
+nazwa = "K5"
+bazowa = "konfiguracje/referencyjna.toml"
+katalog = "wyniki/K5"
+ziarna = [801]
+
+[stale]
+"przebieg.pokolenia" = 500
+
+[[warianty]]
+nazwa = "a"
+
+[[warianty]]
+nazwa = "b"

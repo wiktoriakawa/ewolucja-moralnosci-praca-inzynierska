@@ -5,6 +5,7 @@ from copy import deepcopy
 from dataclasses import dataclass
 from pathlib import Path
 import re
+from time import perf_counter
 import tomllib
 
 from moralnosc.konfiguracja import waliduj_konfiguracje, wczytaj_konfiguracje
@@ -12,7 +13,15 @@ from moralnosc.petla import uruchom_przebieg
 from moralnosc.zapis import przygotuj_zapis
 
 
-KOLUMNY_STATUSU = ("id", "wariant", "ziarno", "status", "katalog", "blad")
+KOLUMNY_STATUSU = (
+    "id",
+    "wariant",
+    "ziarno",
+    "status",
+    "czas_s",
+    "katalog",
+    "blad",
+)
 DOZWOLONA_NAZWA = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 POLA_AUTOMATYCZNE = {"przebieg.ziarno", "zapis.katalog"}
 
@@ -213,6 +222,7 @@ def wykonaj_serie(definicja: DefinicjaSerii) -> list[dict[str, object]]:
             "wariant": plan.wariant.nazwa,
             "ziarno": plan.ziarno,
             "status": "oczekuje",
+            "czas_s": "",
             "katalog": str(plan.katalog),
             "blad": "",
         }
@@ -229,6 +239,7 @@ def wykonaj_serie(definicja: DefinicjaSerii) -> list[dict[str, object]]:
 
         status["status"] = "w_toku"
         _zapisz_statusy(definicja.katalog, statusy)
+        poczatek = perf_counter()
         try:
             cfg = zbuduj_konfiguracje(definicja, plan, bazowa)
             callback = przygotuj_zapis(cfg)
@@ -238,6 +249,7 @@ def wykonaj_serie(definicja: DefinicjaSerii) -> list[dict[str, object]]:
             status["blad"] = f"{type(blad).__name__}: {blad}"
         else:
             status["status"] = "zakonczony"
+        status["czas_s"] = round(perf_counter() - poczatek, 3)
         _zapisz_statusy(definicja.katalog, statusy)
 
     return statusy

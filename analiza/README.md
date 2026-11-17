@@ -206,3 +206,30 @@ oraz wykresy:
 | K2, K2b | `<seria>_zakwalifikowani.pdf`, `<seria>_awaryjny.pdf` |
 | K3 | `K3_roznorodnosc.pdf`, `K3_odziedziczalnosc.pdf` |
 | K4 | `K4_kontakty.pdf` |
+
+## Końcowa weryfikacja KM3
+
+Moduł `weryfikacja.py` wykonuje serię K5 i automatycznie sprawdza pełny
+przepływ konfiguracji referencyjnej. K5 składa się z dwóch przebiegów po
+500 pokoleń, wykonanych z tym samym ziarnem w osobnych katalogach.
+
+Przed uruchomieniem katalog `wyniki/K5` nie może zawierać wyników tych
+przebiegów. Z katalogu głównego repozytorium należy wykonać:
+
+```powershell
+$env:PYTHONPATH = "src"
+python -m analiza.weryfikacja
+```
+
+Skrypt kolejno:
+
+- uruchamia oba przebiegi K5;
+- wykonuje kontrolę jakości każdego przebiegu;
+- porównuje trzy pliki CSV w celu sprawdzenia powtarzalności NF-03;
+- sprawdza limity czasu, pamięci i rozmiaru danych;
+- zapisuje parametry komputera i środowiska programistycznego;
+- tworzy tabelę CSV, tabelę LaTeX i wykres przebiegu referencyjnego.
+
+Surowe wyniki trafiają do `wyniki/K5`, a podsumowanie domyślnie do
+`wyniki/analiza/K5`. Najważniejsze miary i wyniki wymagań niefunkcjonalnych
+znajdują się w pliku `K5_weryfikacja.json`.
