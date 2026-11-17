@@ -137,9 +137,11 @@ niepuste katalogi przebiegów nie są nadpisywane.
 
 ## Analiza wyników
 
-Katalog `analiza` zawiera kontrolę jakości pojedynczego przebiegu oraz
-eksplorację danych pilotażowych. Instrukcje uruchomienia i opis tworzonych
-plików znajdują się w pliku [`analiza/README.md`](analiza/README.md).
+Katalog `analiza` zawiera kontrolę jakości pojedynczego przebiegu,
+eksplorację danych pilotażowych, analizę serii kalibracyjnych K1–K4 oraz
+analizę opłacalności kradzieży i ciągów dylematów. Instrukcje uruchomienia
+i opis tworzonych plików znajdują się w pliku
+[`analiza/README.md`](analiza/README.md).
 
 ## Uruchamianie testów
 
@@ -184,9 +186,12 @@ konfiguracje/
 └── pilotaz/           # konfiguracje przebiegów pilotażowych
 
 analiza/
-├── jakosc.py          # kontrola jakości i analiza pojedynczego przebiegu
-├── eksploracja.py     # eksploracja wyników całego pilotażu
-└── README.md          # instrukcja uruchamiania analizy
+├── jakosc.py                 # kontrola jakości i analiza pojedynczego przebiegu
+├── eksploracja.py            # eksploracja wyników całego pilotażu
+├── kalibracja.py             # analiza serii kalibracyjnych K1–K4
+├── oplacalnosc_kradziezy.py  # opłacalność kradzieży i ciągi dylematów w pilotażu
+├── test_*.py                 # testy skryptów analizy
+└── README.md                 # instrukcja uruchamiania analizy
 
 tests/
 ├── pomocnicze.py    # sprawdzanie niezmienników stanu

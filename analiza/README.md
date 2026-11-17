@@ -4,6 +4,16 @@ Moduł `jakosc.py` sprawdza jakość danych jednego przebiegu symulacji,
 oblicza podstawowe miary pokoleń i tworzy wykresy. Nie sprawdza założeń
 konkretnych przebiegów pilotażowych P1–P3.
 
+Skrypty w katalogu:
+
+- `jakosc.py` – kontrola jakości jednego przebiegu (sekcje poniżej);
+- `eksploracja.py` – eksploracja danych pilotażu (sekcja „Eksploracja danych
+  pilotażu”);
+- `kalibracja.py` – analiza serii kalibracyjnych (sekcja „Analiza serii
+  kalibracyjnych”);
+- `oplacalnosc_kradziezy.py` – opłacalność kradzieży i ciągi dylematów
+  (sekcja o tej samej nazwie).
+
 ## Dane wejściowe
 
 Należy wskazać katalog jednego przebiegu zawierający cztery pliki:
@@ -120,3 +130,79 @@ Skrypt tworzy (wiersz = seria i `alfa`):
 Ciąg nie jest pełnym fizycznym spotkaniem: krok, w którym cel stoi dalej przed
 agentem, ale warunki dylematu nie są spełnione, nie ma wiersza w `dylematy.csv`
 i przerywa ciąg.
+
+## Eksploracja danych pilotażu
+
+Skrypt `eksploracja.py` liczy z zapisanych plików CSV pilotażu (serie P1
+i P2; P3 pomija, bo służy tylko powtarzalności) profil zachowań oraz
+współczynniki `M`, `M_wyg` i `M_pop`, wypisuje liczby i zapisuje wykresy
+i tabele LaTeX-a do punktów 4.3.1 i 4.4 dokumentu etapu 2. Symulacji nie
+uruchamia – poza odtworzeniem pokolenia zerowego na potrzeby punktu 4.4.3.
+
+Dane wejściowe: lokalny katalog z podkatalogami przebiegów pilotażu (np.
+`P1_z101`, `P2_niedobor_z201`), w każdym `konfiguracja.json`, `pokolenia.csv`,
+`agenci.csv` i `dylematy.csv`; potrzebne są obie serie, P1 i P2.
+
+```powershell
+$env:PYTHONPATH = "src"
+python -m analiza.eksploracja lokalne/wyniki_pilotazu --wyjscie wyniki/analiza
+```
+
+Opcje: `--wyjscie` (domyślnie `wyniki/analiza`), `--a` (wygładzanie `M_wyg`,
+domyślnie 2) i `--D-min` (próg liczby dylematów, domyślnie 5). Skrypt tworzy
+w katalogu wyjściowym (tabele LaTeX-a w podkatalogu `tabele/`):
+
+- punkt 4.3.1 – `D_podsumowanie.csv`, `M_rozrzut_wg_D.csv`, `histogram_D.pdf`,
+  `M_od_D.pdf`, `tabele/tab_dylematy.tex`, `tabele/tab_rozrzut.tex`;
+- punkt 4.4.2 – `statystyki_P1.csv`, `statystyki_P2_*.csv`,
+  `tabele/tab_statystyki_P1.tex`, `tabele/tab_statystyki_P2.tex`;
+- punkt 4.4.3 – `udzialy_akcji_P1.csv`, `pokolenie_zerowe.pdf`;
+- punkt 4.4.4 – `przebieg_w_pokoleniach.csv`, `przebieg_wybrane_pokolenia.csv`,
+  `akcje_w_pokoleniach.csv`, `przezywalnosc.pdf`, `M_pop.pdf`,
+  `akcje_w_pokoleniach.pdf`.
+
+Funkcje wczytujące dane z `eksploracja.py` wykorzystują też `kalibracja.py`
+i `oplacalnosc_kradziezy.py`, więc ich zmiana wymaga uruchomienia testów
+wszystkich trzech skryptów.
+
+## Analiza serii kalibracyjnych
+
+Skrypt `kalibracja.py` podsumowuje serię kalibracyjną uruchomioną trybem
+serii: K1, K2, K2b, K3 albo K4 (pytania, warianty i kryteria wyboru opisuje
+`konfiguracje/kalibracja/plan_kalibracji.md`). Dla każdego wariantu liczy
+średnią i odchylenie między ziarnami, sprawdza warunki dopuszczalności
+z planu, a w K2, K2b, K3 i K4 wskazuje też wariant wybrany według reguły
+z planu.
+
+Dane wejściowe: katalog serii, czyli `katalog` z sekcji `[seria]` pliku serii
+(np. `wyniki/K3`). Analiza bierze tylko przebiegi ze statusem `zakonczony`
+w `status.csv`, a gdy tego pliku nie ma – wszystkie podkatalogi
+z `konfiguracja.json`. Z każdego przebiegu czyta `pokolenia.csv`
+i `agenci.csv`, a w K1 i K4 także `dylematy.csv`. K3 i K4 wymagają kolumny
+`roznorodnosc` w `pokolenia.csv`, czyli danych z wersji kodu z pomiarem
+różnorodności genetycznej.
+
+```powershell
+$env:PYTHONPATH = "src"
+python -m moralnosc seria konfiguracje/kalibracja/K3.toml
+python -m analiza.kalibracja K3 wyniki/K3 --wyjscie wyniki/analiza/K3
+```
+
+Opcje: `--wyjscie` (domyślnie `wyniki/analiza/<seria>`), `--a` (wygładzanie
+`M_wyg`, domyślnie 2), `--D-min` (próg liczby dylematów, domyślnie 5)
+i `--ostatnie` (z ilu ostatnich pokoleń uśredniać miary końcowe, domyślnie
+5). Seria K1b jest w planie, ale jej analizy jeszcze nie ma – skrypt kończy
+się wtedy kodem 2.
+
+Skrypt wypisuje tabelę wariantów i listę wariantów dopuszczalnych, a do
+katalogu wyjściowego zapisuje `<seria>_podsumowanie.csv`,
+`<seria>_podsumowanie.tex` (tabela do dokumentu z etykietą `tab:<seria>`;
+liczb w niej nie poprawia się ręcznie, tylko uruchamia skrypt ponownie)
+oraz wykresy:
+
+| Seria | Wykresy |
+|---|---|
+| K1 | `K1_koncentracja.pdf`, `K1_entropia.pdf` |
+| K2, K2b | `<seria>_zakwalifikowani.pdf`, `<seria>_awaryjny.pdf` |
+| K3 | `K3_roznorodnosc.pdf`, `K3_odziedziczalnosc.pdf` |
+| K4 | `K4_kontakty.pdf` |
