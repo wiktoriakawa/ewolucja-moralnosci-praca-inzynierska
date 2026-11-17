@@ -202,7 +202,6 @@ def test_k2b_walidacja_tworzy_27_konfiguracji_na_nowych_ziarnach():
     )
     bazowa = seria.wczytaj_konfiguracje(KATALOG_REPO / definicja.bazowa)
     plany = seria.rozwin_serie(definicja)
-
     konfiguracje = [
         seria.zbuduj_konfiguracje(definicja, plan, bazowa) for plan in plany
     ]
@@ -231,6 +230,32 @@ def test_k2b_walidacja_tworzy_27_konfiguracji_na_nowych_ziarnach():
     assert {cfg["siec"]["h"] for cfg in konfiguracje} == {8}
     assert {cfg["ewolucja"]["E0"] for cfg in konfiguracje} == {50.0}
     assert {cfg["przebieg"]["pokolenia"] for cfg in konfiguracje} == {30}
+
+
+def test_k5_tworzy_dwa_powtorzenia_konfiguracji_referencyjnej():
+    """K5 uruchamia dwa identyczne modele z ziarnem 801 w osobnych katalogach."""
+    definicja = seria.wczytaj_serie(KATALOG_REPO / "konfiguracje/kalibracja/K5.toml")
+    bazowa = seria.wczytaj_konfiguracje(KATALOG_REPO / definicja.bazowa)
+    plany = seria.rozwin_serie(definicja)
+    konfiguracje = [
+        seria.zbuduj_konfiguracje(definicja, plan, bazowa) for plan in plany
+    ]
+
+    assert [plan.identyfikator for plan in plany] == ["K5_a_z801", "K5_b_z801"]
+    assert len(konfiguracje) == 2
+    assert {Path(cfg["zapis"]["katalog"]) for cfg in konfiguracje} == {
+        Path("wyniki/K5/K5_a_z801"),
+        Path("wyniki/K5/K5_b_z801"),
+    }
+    for cfg in konfiguracje:
+        assert cfg["przebieg"] == {"ziarno": 801, "pokolenia": 500, "kroki": 300}
+        assert cfg["obserwacje"]["skala"] == 50.0
+        assert cfg["siec"] == {"tryb": "softmax", "tau": 2.0, "h": 8}
+        assert cfg["zasoby"]["alfa"] == 0.95
+        assert cfg["ewolucja"]["T"] == 40.0
+        assert cfg["ewolucja"]["r"] == 0.025
+        assert cfg["ewolucja"]["sigma"] == 0.4
+        assert cfg["ewolucja"]["R"] == 2
 
 
 def test_zbuduj_konfiguracje_naklada_stale_wariant_i_pola_automatyczne(tmp_path):
@@ -270,6 +295,7 @@ def test_wykonaj_serie_zapisuje_wyniki_i_status_kazdego_przebiegu(tmp_path):
     statusy = seria.wykonaj_serie(seria.wczytaj_serie(definicja_toml))
 
     assert [status["status"] for status in statusy] == ["zakonczony", "zakonczony"]
+    assert all(float(status["czas_s"]) >= 0 for status in statusy)
     assert [wiersz["status"] for wiersz in _wczytaj_statusy(katalog / "status.csv")] == [
         "zakonczony",
         "zakonczony",

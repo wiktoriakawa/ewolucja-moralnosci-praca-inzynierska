@@ -1,0 +1,51 @@
+# Konfiguracja referencyjna KM3 z wartościami wybranymi w seriach K1-K4.
+
+[przebieg]
+ziarno = 801
+pokolenia = 500
+kroki = 300
+
+[plansza]
+H = 64
+W = 64
+
+[populacja]
+N = 200
+
+[zasoby]
+c_min = 1.0
+c_max = 5.0
+# Wybór z K2b.
+alfa = 0.95
+
+[obserwacje]
+# Wybór z K1.
+skala = 50.0
+
+[koszty]
+m = 1.0
+ruch = 0.0
+s = 2.0
+c_k = 1.0
+p = 0.5
+x = 5.0
+
+[siec]
+tryb = "softmax"
+# Wybór z K1.
+tau = 2.0
+h = 8
+
+[ewolucja]
+# Wybór z K2b.
+T = 40.0
+E0 = 50.0
+# Wybór z K3: r = 3/L dla L = 120.
+r = 0.025
+sigma = 0.4
+w_max = 4.0
+# Wybór z K4.
+R = 2
+
+[zapis]
+katalog = "wyniki/referencyjna"

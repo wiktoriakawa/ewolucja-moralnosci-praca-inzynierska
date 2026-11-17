@@ -190,6 +190,7 @@ analiza/
 ├── eksploracja.py            # eksploracja wyników całego pilotażu
 ├── kalibracja.py             # analiza serii kalibracyjnych K1–K4
 ├── oplacalnosc_kradziezy.py  # opłacalność kradzieży i ciągi dylematów w pilotażu
+├── weryfikacja.py            # końcowa weryfikacja konfiguracji referencyjnej K5
 ├── test_*.py                 # testy skryptów analizy
 └── README.md                 # instrukcja uruchamiania analizy
 
