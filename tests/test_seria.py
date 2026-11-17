@@ -139,6 +139,100 @@ def test_k1_tworzy_27_poprawnych_konfiguracji():
     assert {cfg["przebieg"]["ziarno"] for cfg in konfiguracje} == {401, 402, 403}
 
 
+def test_k2_tworzy_18_poprawnych_konfiguracji():
+    """Definicja K2 łączy sześć wariantów z trzema ziarnami."""
+    definicja = seria.wczytaj_serie(KATALOG_REPO / "konfiguracje/kalibracja/K2.toml")
+    bazowa = seria.wczytaj_konfiguracje(KATALOG_REPO / definicja.bazowa)
+    plany = seria.rozwin_serie(definicja)
+
+    konfiguracje = [
+        seria.zbuduj_konfiguracje(definicja, plan, bazowa) for plan in plany
+    ]
+
+    assert len(konfiguracje) == 18
+    assert {
+        (cfg["ewolucja"]["T"], cfg["zasoby"]["alfa"], cfg["przebieg"]["ziarno"])
+        for cfg in konfiguracje
+    } == {
+        (T, alfa, ziarno)
+        for T in (30.0, 50.0, 70.0)
+        for alfa in (0.85, 1.0)
+        for ziarno in (501, 502, 503)
+    }
+    assert {cfg["obserwacje"]["skala"] for cfg in konfiguracje} == {50.0}
+    assert {cfg["siec"]["tau"] for cfg in konfiguracje} == {2.0}
+    assert {cfg["siec"]["h"] for cfg in konfiguracje} == {8}
+    assert {cfg["ewolucja"]["E0"] for cfg in konfiguracje} == {50.0}
+    assert {cfg["przebieg"]["pokolenia"] for cfg in konfiguracje} == {30}
+
+
+def test_k2b_tworzy_27_poprawnych_konfiguracji():
+    """Definicja K2b łączy dziewięć wariantów z trzema ziarnami."""
+    definicja = seria.wczytaj_serie(
+        KATALOG_REPO / "konfiguracje/kalibracja/K2b.toml"
+    )
+    bazowa = seria.wczytaj_konfiguracje(KATALOG_REPO / definicja.bazowa)
+    plany = seria.rozwin_serie(definicja)
+
+    konfiguracje = [
+        seria.zbuduj_konfiguracje(definicja, plan, bazowa) for plan in plany
+    ]
+
+    assert len(konfiguracje) == 27
+    assert {
+        (cfg["ewolucja"]["T"], cfg["zasoby"]["alfa"], cfg["przebieg"]["ziarno"])
+        for cfg in konfiguracje
+    } == {
+        (T, alfa, ziarno)
+        for T in (40.0, 50.0, 60.0)
+        for alfa in (0.90, 0.95, 1.0)
+        for ziarno in (501, 502, 503)
+    }
+    assert {cfg["obserwacje"]["skala"] for cfg in konfiguracje} == {50.0}
+    assert {cfg["siec"]["tau"] for cfg in konfiguracje} == {2.0}
+    assert {cfg["siec"]["h"] for cfg in konfiguracje} == {8}
+    assert {cfg["ewolucja"]["E0"] for cfg in konfiguracje} == {50.0}
+    assert {cfg["przebieg"]["pokolenia"] for cfg in konfiguracje} == {30}
+
+
+def test_k2b_walidacja_tworzy_27_konfiguracji_na_nowych_ziarnach():
+    """Walidacja powtarza siatkę K2b dla trzech nowych ziaren."""
+    definicja = seria.wczytaj_serie(
+        KATALOG_REPO / "konfiguracje/kalibracja/K2b_walidacja.toml"
+    )
+    bazowa = seria.wczytaj_konfiguracje(KATALOG_REPO / definicja.bazowa)
+    plany = seria.rozwin_serie(definicja)
+
+    konfiguracje = [
+        seria.zbuduj_konfiguracje(definicja, plan, bazowa) for plan in plany
+    ]
+
+    assert len(konfiguracje) == 27
+    assert {
+        (cfg["ewolucja"]["T"], cfg["zasoby"]["alfa"], cfg["przebieg"]["ziarno"])
+        for cfg in konfiguracje
+    } == {
+        (T, alfa, ziarno)
+        for T in (40.0, 50.0, 60.0)
+        for alfa in (0.90, 0.95, 1.0)
+        for ziarno in (504, 505, 506)
+    }
+    assert {cfg["zapis"]["katalog"] for cfg in konfiguracje} == {
+        str(
+            Path("wyniki/K2b_walidacja")
+            / f"K2b_walidacja_T{T}_a{alfa}_z{ziarno}"
+        )
+        for T in ("40", "50", "60")
+        for alfa in ("0.90", "0.95", "1")
+        for ziarno in (504, 505, 506)
+    }
+    assert {cfg["obserwacje"]["skala"] for cfg in konfiguracje} == {50.0}
+    assert {cfg["siec"]["tau"] for cfg in konfiguracje} == {2.0}
+    assert {cfg["siec"]["h"] for cfg in konfiguracje} == {8}
+    assert {cfg["ewolucja"]["E0"] for cfg in konfiguracje} == {50.0}
+    assert {cfg["przebieg"]["pokolenia"] for cfg in konfiguracje} == {30}
+
+
 def test_zbuduj_konfiguracje_naklada_stale_wariant_i_pola_automatyczne(tmp_path):
     """Konfiguracja przebiegu otrzymuje zmiany wspólne, wariant, ziarno i katalog."""
     bazowa_toml = tmp_path / "bazowa.toml"
