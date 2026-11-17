@@ -302,6 +302,27 @@ def test_zarejestruj_nieudane_interakcje_nie_zmieniaja_transferow(pomiar, stan):
     assert np.all(pomiar.wartosc_kradziezy_jako_ofiara == 0.0)
 
 
+def test_zarejestruj_udana_kradziez_poza_dylematem(pomiar, stan):
+    """Transfer poza dylematem trafia do pomiaru ofiary, ale nie do zdarzeń."""
+    zarejestruj(
+        pomiar,
+        stan,
+        np.array([0.5, 3.0, 0.0]),
+        i=0,
+        j=1,
+        akcja=KRADNIJ,
+        dylemat_i=False,
+        wynik=SUKCES,
+        kwota=1.5,
+    )
+
+    assert pomiar.akcje_licznik[KRADNIJ] == 1
+    assert pomiar.liczba_kradziezy_jako_ofiara.tolist() == [0, 1, 0]
+    assert pomiar.wartosc_kradziezy_jako_ofiara.tolist() == [0.0, 1.5, 0.0]
+    assert pomiar.D[0] == 0
+    assert pomiar.zdarzenia == []
+
+
 def test_zarejestruj_poza_dylematem_zlicza_tylko_akcje(pomiar, stan):
     """Każda intencja trafia do licznika akcji, ale nie każda jest dylematem."""
     zarejestruj(
