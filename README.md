@@ -48,6 +48,7 @@ Najważniejsze elementy planowane w KM3:
 - NumPy;
 - pandas do kontroli jakości i analizy danych;
 - Matplotlib do tworzenia wykresów;
+- Pillow do zapisu animacji GIF;
 - pytest do uruchamiania testów.
 
 Projekt został lokalnie sprawdzony z użyciem:
@@ -56,6 +57,7 @@ Projekt został lokalnie sprawdzony z użyciem:
 - NumPy 2.5.4;
 - pandas 3.1.0;
 - Matplotlib 3.11.2;
+- Pillow 13.0.0;
 - pytest 9.1.1.
 
 ## Przygotowanie środowiska
@@ -100,6 +102,22 @@ PYTHONPATH=src python -m moralnosc przebieg konfiguracje/pilotaz/P1_z101.toml
 
 Po zakończeniu powstają plik `konfiguracja.json` oraz pliki
 `pokolenia.csv`, `agenci.csv` i `dylematy.csv`.
+
+### Animacja ruchu agentów
+
+Aby zapisać ruch agentów w wybranych pokoleniach, podaj ich numery od zera.
+Ustaw w pliku TOML nowy lub pusty katalog `zapis.katalog`.
+
+```powershell
+$env:PYTHONPATH = "src"
+python -m moralnosc przebieg konfiguracje/referencyjna.toml --animuj-pokolenia 0 5 20 --fps 20
+```
+
+W podkatalogu `animacje/` powstanie osobny plik GIF dla każdego wybranego
+i osiągniętego pokolenia, np. `pokolenie_005.gif`. Pierwsza klatka pokazuje
+rozmieszczenie agentów przed pierwszym krokiem. Każda następna pokazuje
+pozycje żywych agentów po pełnym kroku. Przy wymarciu ostatnia klatka jest
+pusta. Opcja `--fps` zmienia tempo odtwarzania, domyślnie 20 klatek/s.
 
 ## Uruchamianie serii
 

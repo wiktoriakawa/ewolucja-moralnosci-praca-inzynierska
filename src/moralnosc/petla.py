@@ -44,6 +44,7 @@ from moralnosc.stan import (
 # Typ funkcji wywoływanej po zakończeniu każdego pokolenia. Konkretną
 # funkcję, np. zapisującą wyniki do CSV, przekazujemy jako `po_pokoleniu`.
 ObslugaPokolenia = Callable[[Stan, Pomiar, NDArray[np.bool_], bool], None]
+ObslugaKlatki = Callable[[Stan], None]
 
 
 def _cel_nadal_przed(stan: Stan, i: int, cel: int) -> bool:
@@ -159,6 +160,8 @@ def wykonaj_pokolenie(
     stan: Stan,
     cfg: dict,
     rng: np.random.Generator,
+    *,
+    po_klatce: ObslugaKlatki | None = None,
 ) -> tuple[Pomiar, NDArray[np.bool_], bool, bool]:
     """Wykonuje jedno pokolenie i przygotowuje dane do zapisu.
 
@@ -166,6 +169,9 @@ def wykonaj_pokolenie(
     wariantu awaryjnego oraz informację, czy ktoś dożył końca pokolenia.
     Po wymarciu maska rodziców jest pusta, a wariant awaryjny ma wartość
     ``False``.
+
+    Opcjonalne ``po_klatce`` dostaje stan do odczytu przed pierwszym krokiem
+    i po każdym pełnym kroku, również tym zakończonym wymarciem.
     """
     stan.krok = 0
     pomiar = pusty_pomiar(
@@ -173,8 +179,13 @@ def wykonaj_pokolenie(
         roznorodnosc=oblicz_roznorodnosc(stan.genomy),
     )
 
+    if po_klatce is not None:
+        po_klatce(stan)
     for _ in range(cfg["przebieg"]["kroki"]):
-        if not krok(stan, cfg, rng, pomiar=pomiar):
+        przetrwal = krok(stan, cfg, rng, pomiar=pomiar)
+        if po_klatce is not None:
+            po_klatce(stan)
+        if not przetrwal:
             pusta_maska = np.zeros(stan.zywy.shape, dtype=np.bool_)
             return pomiar, pusta_maska, False, False
 
@@ -192,12 +203,14 @@ def uruchom_przebieg(
     cfg: dict,
     *,
     po_pokoleniu: ObslugaPokolenia | None = None,
+    po_klatce: ObslugaKlatki | None = None,
 ) -> Stan:
     """Uruchamia kolejne pokolenia jednego deterministycznego przebiegu.
 
     Opcjonalna funkcja ``po_pokoleniu`` otrzymuje stan przed utworzeniem
     potomków, pomiar, maskę rodziców i informację o wariancie awaryjnym.
     Callback może służyć do przyrostowego zapisu wyników po pokoleniu.
+    ``po_klatce`` służy do odczytu stanu przed ruchem i po pełnych krokach.
     Przebieg kończy się po zadanej liczbie pokoleń albo po wymarciu.
     """
     rng = np.random.default_rng(cfg["przebieg"]["ziarno"])
@@ -205,7 +218,9 @@ def uruchom_przebieg(
     liczba_pokolen = cfg["przebieg"]["pokolenia"]
 
     for numer_pokolenia in range(liczba_pokolen):
-        pomiar, maska, awaryjny, przetrwal = wykonaj_pokolenie(stan, cfg, rng)
+        pomiar, maska, awaryjny, przetrwal = wykonaj_pokolenie(
+            stan, cfg, rng, po_klatce=po_klatce
+        )
 
         if po_pokoleniu is not None:
             po_pokoleniu(stan, pomiar, maska, awaryjny)
